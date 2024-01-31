@@ -22,7 +22,7 @@ void TwoChooseOneProtocol(Role role, int totalOTs, int numThreads,
                           std::string ip, std::string tag) {
     if (totalOTs == 0) totalOTs = 1 << 2;
 
-    bool randomOT = true;
+    bool randomOT = false; // modify to true OT
 
     // get up the networking
     auto chl = cp::asioConnect(ip, role == Role::Sender);
@@ -88,6 +88,9 @@ void TwoChooseOneProtocol(Role role, int totalOTs, int numThreads,
                 cp::sync_wait(
                     receiver.receiveChosen(choice, rMsgs, prng, chl));
             }
+
+            std::cout << "Results: ";
+            for (auto& e: rMsgs) std::cout << e << std::endl;
         } catch (std::exception& e) {
             std::cout << e.what() << std::endl;
             chl.close();
@@ -109,6 +112,11 @@ void TwoChooseOneProtocol(Role role, int totalOTs, int numThreads,
             } else {
                 // Populate msgs with something useful...
                 prng.get(sMsgs.data(), sMsgs.size());
+
+                sMsgs[0][0] = block(1919810), sMsgs[0][1] = block(114514); // explicit constructor
+                for (auto& e: sMsgs) {
+                    std::cout << "bruh " << e[0] << " ; " << e[1] << "\n";
+                }
 
                 // perform the OTs. The receiver will learn one
                 // of the messages stored in msgs.
