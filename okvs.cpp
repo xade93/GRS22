@@ -20,18 +20,18 @@ namespace okvs {
 
         // convert bitset (>= 32 bit chunks) to bytestream (8bit chunks). tail will be padded.
         // low efficiency (should be faster by iterating chunks instead) but there is platform-dependent logic to do. decide dont do it.
-        auto BitsetToByteStream = [&I](const std::bitset<I>& input) {
+        // not functional, but have to do this due to OpenSSL interface
+        auto BitsetToByteStream = [](const std::bitset<I>& input, char ret[]) {
             static_assert(CHAR_BIT == 8 && I > 0);
-            char ret[(I - 1) / 8 + 1]; 
             for (uint64_t idx = 0; idx < I; ++idx) {
                 ret[idx / 8] |= ((input[idx]) << (7 - idx % 8)); 
             }
-            return ret;
         };
 
-        auto bs = BitsetToByteStream(input);
+        char bs[(I - 1) / 8 + 1];
+        BitsetToByteStream(input, bs);
 
-        SHA256_Update(&sha256, input, bs, (I - 1) / 8 + 1);
+        SHA256_Update(&sha256, bs, (I - 1) / 8 + 1);
         unsigned char hash[SHA256_DIGEST_LENGTH];
         SHA256_Final(hash, &sha256);
 
@@ -50,13 +50,18 @@ namespace okvs {
     // also stick to SHA256 for hashing.
     template<uint64_t KeyLength, uint64_t ValueLength, uint64_t Lambda, uint64_t MaxEncodingAttempt = 10>
     struct RandomBooleanPaXoS {
-        constexpr HashedKeyLength = KeyLength + Lambda;
-        using D = std::array<std::bitset<ValueLength>, HashedKeyLength>;
-        using N = std::bitset<Lambda>; // a nonce is always a bitstring of length Lambda.
+        static constexpr uint64_t HashedKeyLength = KeyLength + Lambda;
+        using EncodedPaXoS = std::array<std::bitset<ValueLength>, HashedKeyLength>;
+        using Key = std::bitset<KeyLength>;
+        using Nonce = std::bitset<Lambda>;
+        using Value = std::bitset<ValueLength>;
         template<typename T> using Opt = std::optional<T>;
 
-        RandomBooleanPaXoS(const std::random_device& RandomSource): 
-            randomEngine(std::mt19937_64(RandomSource)), hash(Hash64()) {
+        // why unique ptr? because I need modifiable sole ownership of the random source.
+        RandomBooleanPaXoS(std::unique_ptr<std::random_device> RandomSource)
+        {
+            randomSource = std::move(RandomSource);
+            randomEngine = std::mt19937_64((*randomSource)());
             static_assert(HashedKeyLength <= 64);
         }
 
@@ -68,7 +73,7 @@ namespace okvs {
             std::bitset<L> bits;
             for (uint64_t idx = 0; idx < L; idx += 64) {
                 std::bitset<64> currBatch = src();
-                for (uint64_t currBit = idx; currBit < min(idx + 64, L); ++currBit) {
+                for (uint64_t currBit = idx; currBit < std::min(idx + 64, L); ++currBit) {
                     bits[currBit] = currBatch[currBit - idx];
                 }
             }
@@ -77,15 +82,29 @@ namespace okvs {
 
         // encode function optionally returns (1) the encoded vector (2) the nonce. 
         // Returns nullopt when fail to encode due to exceeding trial attempts.
-        Opt<std::pair<D, N>> encode(const std::vector<std::pair<uint64_t, uint64_t>>& kvs) { // TODO support for longer kvs
+        Opt<std::pair<EncodedPaXoS, Nonce>> encode(const std::vector<std::pair<Key, Value>>& kvs) { // TODO support for longer kvs
+            using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
-                std::bitset<Lambda> nonce = GetBitSequenceFromPRNG<Lambda>(randomEngine);
-                auto hash = SHA256Hash<KeyLength, Lambda>()
+                auto nonce = GetBitSequenceFromPRNG<Lambda>(randomEngine);
+                std::vector<HashedKey> currMatrix;
+                for (auto& [key, value]: kvs) { // for each key[i], evaluate v(key[i]). Now we wish to sanity-check if the resulting matrix is linearly independent.
+                    std::bitset<256> hashed = SHA256Hash<KeyLength, Lambda>(key, nonce);
+
+                    // next, compress the 256-bit hash into 64 bit
+                    uint64_t prngSeed = 0;
+                    for (uint64_t i = 0; i < 256; ++i) if (hashed[i]) prngSeed ^= (1ll << (i % 64));
+
+                    // finally, generate output vector.
+                    auto v = std::mt19937_64(prngSeed);
+                    auto encodedKey = GetBitSequenceFromPRNG<HashedKeyLength>(v);
+                    currMatrix.emplace_back(encodedKey);
+                }
+                assert(currMatrix.size() == kvs.size());
             }
             return std::nullopt;
         }
     private:
         std::mt19937_64 randomEngine;
-        Hash64 hash;
+        std::unique_ptr<std::random_device> randomSource;
     };
 }
