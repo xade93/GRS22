@@ -1,6 +1,6 @@
 #include <bits/stdc++.h>
 #include "protocol.tpp"
-#include "okvs.cpp"
+#include "okvs.tpp"
 
 int main() {
     auto randomSource = std::make_unique<std::random_device>();

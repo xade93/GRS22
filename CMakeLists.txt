@@ -12,7 +12,9 @@ find_package(libOTe REQUIRED)
 find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
+file(GLOB SOURCES "src/*.cpp")
 
-add_executable(garimella protocol.cpp protocol.tpp okvs.cpp main.cpp)
+add_executable(garimella ${SOURCES})
 
+target_include_directories(garimella PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(garimella oc::libOTe OpenSSL::SSL OpenSSL::Crypto)

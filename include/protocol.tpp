@@ -1,5 +1,4 @@
-#ifndef __PROTOCOL_H__
-#define __PROTOCOL_H__
+#pragma once
 
 #include <coproto/Socket/AsioSocket.h>
 #include <cryptoTools/Common/Log.h>  // for lout
@@ -153,5 +152,3 @@ void TwoChooseOneProtocol(Role role, int totalOTs, int numThreads,
     }
     cp::sync_wait(chl.flush());
 }
-
-#endif

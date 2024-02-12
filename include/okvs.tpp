@@ -1,5 +1,7 @@
+#pragma once
 #include <bits/stdc++.h>
 #include <openssl/sha.h>
+#include "matrix_tools.tpp"
 
 // design choices:
 // - XXXXXXXXXXXXXXXXXXXX we need boost::dynamic_bitset instead of std::bitset because OpenSSL SHA256 takes bytestream (8 bits chunk) not std::bitset (>=32 bits chunk),
@@ -85,6 +87,7 @@ namespace okvs {
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(const std::vector<std::pair<Key, Value>>& kvs) { // TODO support for longer kvs
             using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
+                // firstly, we generate the whole encoded matrix.
                 auto nonce = GetBitSequenceFromPRNG<Lambda>(randomEngine);
                 std::vector<HashedKey> currMatrix;
                 for (auto& [key, value]: kvs) { // for each key[i], evaluate v(key[i]). Now we wish to sanity-check if the resulting matrix is linearly independent.
@@ -100,6 +103,13 @@ namespace okvs {
                     currMatrix.emplace_back(encodedKey);
                 }
                 assert(currMatrix.size() == kvs.size());
+
+                // next, we check if the generated matrix is linearly independent. 
+                if (isFullRank<HashedKeyLength>(currMatrix)) {
+                    EncodedPaXoS encoded;
+                    
+                    return std::make_pair(encoded, nonce) ;
+                }
             }
             return std::nullopt;
         }
