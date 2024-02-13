@@ -85,6 +85,7 @@ namespace okvs {
         // encode function optionally returns (1) the encoded vector (2) the nonce. 
         // Returns nullopt when fail to encode due to exceeding trial attempts.
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(const std::vector<std::pair<Key, Value>>& kvs) { // TODO support for longer kvs
+            size_t n = kvs.size(); // number of key-value pairs we wish to encode.
             using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
                 // firstly, we generate the whole encoded matrix.
@@ -107,7 +108,15 @@ namespace okvs {
                 // next, we check if the generated matrix is linearly independent. 
                 if (isFullRank<HashedKeyLength>(currMatrix)) {
                     EncodedPaXoS encoded;
-                    
+                    // we enter the encoding phase.
+                    // for each of the columns, perform a Ax = b.
+                    for (uint64_t i = 0; i < ValueLength; ++i) {
+                        std::vector<bool> q(n);
+                        for (uint64_t j = 0; j < n; ++j) q[j] = kvs[j].second[i]; // taking vertical slice of value portion of kvs matrix
+                        auto [succ, ret] = solveSystem<HashedKeyLength>(currMatrix, q);
+                        assert(succ);
+                        for (uint64_t j = 0; j < HashedKeyLength; ++j) encoded[i][j] = ret[j]; // copy to encode
+                    }
                     return std::make_pair(encoded, nonce) ;
                 }
             }
