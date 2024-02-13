@@ -1,0 +1,15 @@
+sage: A = Matrix([[0,0,0,1,1,0,0,1], [0,1,0,0,1,0,0,1], [0,1,0,0,0,0,1,0], [0,1,1,1,0,0,1,0], [1,1,1,0,0,1
+....: ,1,1], [0,0,0,1,0,0,0,0]])
+sage: A
+[0 0 0 1 1 0 0 1]
+[0 1 0 0 1 0 0 1]
+[0 1 0 0 0 0 1 0]
+[0 1 1 1 0 0 1 0]
+[1 1 1 0 0 1 1 1]
+[0 0 0 1 0 0 0 0]
+sage: A.solve_right(vector([1,1,0,1,1,0]))
+(0, 0, 1, 0, 1, 0, 0, 0)
+sage: A.rank
+<built-in method rank of sage.matrix.matrix_integer_dense.Matrix_integer_dense object at 0x7ea5dc3f49d0>
+sage: A.rank()
+6

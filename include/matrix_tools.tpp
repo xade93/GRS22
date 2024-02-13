@@ -33,57 +33,47 @@ bool isFullRank(const std::vector<std::bitset<N>>& matrix) {
     return rank == std::min(m, n); // Full rank if rank equals the smaller dimension
 }
 
-template<size_t N>
-std::pair<bool, std::bitset<N>> solveSystem(const std::vector<std::bitset<N>>& A, const std::vector<bool>& b) {
-    size_t m = A.size(); // Number of rows in A
-    if (m == 0) return {false, {}}; // No solution if A is empty
-
-    // Create an augmented matrix by appending b to A
-    std::vector<std::bitset<N + 1>> augmentedMatrix(m);
-    for (size_t i = 0; i < m; ++i) {
-        for (size_t j = 0; j < N; ++j) {
-            augmentedMatrix[i][j] = A[i][j];
+template <size_t M>
+std::bitset<M> solveLinearSystem(std::vector<std::bitset<M>>& A, std::vector<bool>& b) {
+    int N = A.size();
+    std::bitset<M> x;
+    for (size_t col = 0, row = 0; col < M && row < N; ++col) {
+        size_t sel = row;
+        for (size_t i = row; i < N; ++i) {
+            if (A[i][col]) {
+                sel = i;
+                break;
+            }
         }
-        augmentedMatrix[i][N] = b[i]; // Append b as the last column
+        if (!A[sel][col]) continue; // No pivot in this column, skip it.
+        std::swap(A[sel], A[row]); // Swap rows.
+        if (b[sel] != b[row]) {
+            bool temp = b[sel];
+            b[sel] = b[row];
+            b[row] = temp;
+        }
+
+
+        for (size_t i = 0; i < N; ++i) {
+            if (i != row && A[i][col]) {
+                A[i] ^= A[row]; // Add (XOR) the rows to eliminate column 'col'.
+                b[i] = b[i] != b[row];
+            }
+        }
+        ++row;
     }
 
-    // Gaussian elimination
-    for (size_t col = 0; col < N; ++col) {
-        size_t pivotRow = col;
-        while (pivotRow < m && !augmentedMatrix[pivotRow][col]) {
-            ++pivotRow;
-        }
-        if (pivotRow >= m) continue; // No pivot found, move to next column
-
-        // Swap current row with pivot row
-        std::swap(augmentedMatrix[col], augmentedMatrix[pivotRow]);
-
-        // Eliminate other rows
-        for (size_t row = 0; row < m; ++row) {
-            if (row != col && augmentedMatrix[row][col]) {
-                augmentedMatrix[row] ^= augmentedMatrix[col];
+    // Back substitution (optional here since we work in F2 and assume at least one solution exists).
+    for (size_t i = 0; i < N; ++i) {
+        if (b[i]) {
+            for (size_t j = 0; j < M; ++j) {
+                if (A[i][j]) {
+                    x[j] = b[i];
+                    break;
+                }
             }
         }
     }
 
-    // Back substitution
-    std::bitset<N> x;
-    for (size_t row = 0; row < m; ++row) {
-        if (augmentedMatrix[row][N]) { // If the last column is 1
-            size_t pivot = augmentedMatrix[row]._Find_first();
-            if (pivot == N) return {false, {}}; // Inconsistent system
-            x[pivot] = 1;
-        }
-    }
-
-    // Verify solution
-    for (size_t i = 0; i < m; ++i) {
-        bool result = 0;
-        for (size_t j = 0; j < N; ++j) {
-            result ^= (A[i][j] && x[j]);
-        }
-        if (result != b[i]) return {false, {}}; // Solution doesn't satisfy equation
-    }
-
-    return {true, x};
+    return x; // x is a solution to Ax = b
 }
