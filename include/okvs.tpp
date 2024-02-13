@@ -52,7 +52,11 @@ namespace okvs {
     // also stick to SHA256 for hashing.
     template<uint64_t KeyLength, uint64_t ValueLength, uint64_t Lambda, uint64_t MaxEncodingAttempt = 10>
     struct RandomBooleanPaXoS {
+    private:
+        std::mt19937_64 randomEngine;
+        std::unique_ptr<std::random_device> randomSource;
         static constexpr uint64_t HashedKeyLength = KeyLength + Lambda;
+    public:
         using EncodedPaXoS = std::array<std::bitset<ValueLength>, HashedKeyLength>;
         using Key = std::bitset<KeyLength>;
         using Nonce = std::bitset<Lambda>;
@@ -122,8 +126,5 @@ namespace okvs {
             }
             return std::nullopt;
         }
-    private:
-        std::mt19937_64 randomEngine;
-        std::unique_ptr<std::random_device> randomSource;
     };
 }
