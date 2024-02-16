@@ -112,6 +112,9 @@ namespace okvs {
         // Returns nullopt when fail to encode due to exceeding trial attempts.
         // will pad the kvs if not have sufficient entry 
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(std::vector<std::pair<Key, Value>> kvs) { // intentionally need to copy kvs
+            // TODO there is no need for padding if the hamming weight of v is sufficiently large. 
+            // which is also the benefit of this - it depends on the number of entry used.
+            // otherwise this would be so heavy.
             if (kvs.size() < KeyLength) { // run the padding process if there is insufficient key-value pairs. note random is okay here as space is exponentially larger than number of entrys
                 // std::unordered_set<Key> existKeys;
                 // for (auto& [k, v]: kvs) existKeys.emplace(k);
@@ -130,7 +133,7 @@ namespace okvs {
             using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
                 // firstly, we generate the whole encoded matrix.
-                auto nonce = Nonce("01");// FIXME GetBitSequenceFromPRNG<Lambda>(randomEngine);
+                auto nonce = Nonce();// FIXME GetBitSequenceFromPRNG<Lambda>(randomEngine);
                 std::vector<HashedKey> currMatrix;
                 for (auto& [key, value]: kvs) { // for each key[i], evaluate v(key[i]). note v in paper is implemented as streamHash here
                     auto encodedKey = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
@@ -148,7 +151,9 @@ namespace okvs {
                     for (uint64_t i = 0; i < ValueLength; ++i) {
                         std::vector<bool> q(n);
                         for (uint64_t j = 0; j < n; ++j) q[j] = kvs[j].second[i]; // taking vertical slice of value portion of kvs matrix
-                        auto ret = solveLinearSystem<HashedKeyLength>(currMatrix, q);
+                        auto ret_wrapper = solveLinear<HashedKeyLength>(currMatrix, q);
+                        assert(ret_wrapper.has_value());
+                        auto ret = ret_wrapper.value();
                         for (uint64_t j = 0; j < HashedKeyLength; ++j) encoded[j][i] = ret[j]; // copy to encode
                     }
                     std::cout << "matrix X is: \n";
@@ -163,7 +168,7 @@ namespace okvs {
         Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key) {
             Value ret; 
             auto vx = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
-            std::cout << "decode: " << vx << std::endl;
+            std::cout << "decode key: " << vx << std::endl;
             for (uint64_t i = 0; i < HashedKeyLength; ++i) if (vx[i]) ret = ret ^ encoded[i];
             return ret;
         }

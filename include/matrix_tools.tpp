@@ -1,79 +1,74 @@
 #pragma once
-#include<bits/stdc++.h>
+#include <bits/stdc++.h>
+#include <cstdint>
 
-template<size_t N>
+template <size_t N>
 bool isFullRank(const std::vector<std::bitset<N>>& matrix) {
-    size_t m = matrix.size(); // Number of rows
-    if (m == 0) return false; // Empty matrix doesn't have full rank
+    size_t M = matrix.size();  // Number of rows
+    if (M == 0) return false;  // Empty matrix doesn't have full rank
 
-    size_t n = N; // Number of columns, determined by bitset size
-    std::vector<std::bitset<N>> mat = matrix; // Copy of the matrix for manipulation
+    size_t n = N;  // Number of columns, determined by bitset size
+    std::vector<std::bitset<N>> mat =
+        matrix;  // Copy of the matrix for manipulation
 
     size_t rank = 0;
     for (size_t col = 0; col < n; ++col) {
         // Find a row with a non-zero element in the current column
         size_t swapRow = rank;
-        while (swapRow < m && !mat[swapRow][col]) {
+        while (swapRow < M && !mat[swapRow][col]) {
             ++swapRow;
         }
-        if (swapRow == m) continue; // No non-zero element found in this column
+        if (swapRow == M) continue;  // No non-zero element found in this column
 
         // Swap the row with a non-zero element to the current row
         std::swap(mat[rank], mat[swapRow]);
 
         // Eliminate the current column from the subsequent rows
-        for (size_t row = 0; row < m; ++row) {
+        for (size_t row = 0; row < M; ++row) {
             if (row != rank && mat[row][col]) {
-                mat[row] ^= mat[rank]; // XOR for binary operation
+                mat[row] ^= mat[rank];  // XOR for binary operation
             }
         }
-        ++rank; // Increment rank for each pivot found
+        ++rank;  // Increment rank for each pivot found
     }
 
-    return rank == std::min(m, n); // Full rank if rank equals the smaller dimension
+    return rank ==
+           std::min(M, n);  // Full rank if rank equals the smaller dimension
 }
 
-template <size_t M>
-std::bitset<M> solveLinearSystem(std::vector<std::bitset<M>>& A, std::vector<bool>& b) {
-    int N = A.size();
+// note this mutates A and b so cant pass reference.
+// TODO courtesy from katcl
+template<uint64_t M>
+std::optional<std::bitset<M>> solveLinear(std::vector<std::bitset<M>> A, std::vector<bool> b) {
+    uint64_t n = A.size(), rank = 0, br;
+    std::vector<uint64_t> col(M);
+    std::iota(col.begin(), col.end(), 0);
+    for (uint64_t i = 0; i < n; ++i) {
+        for (br = i; br < n; ++br)
+            if (A[br].any()) break;
+        if (br == n) {
+            for (uint64_t j = i; j < n; ++j) if (b[j]) return std::nullopt;
+            break;
+        }
+        int bc = (int)A[br]._Find_next(i - 1);
+        std::swap(A[i], A[br]);
+        auto tmp = b[i]; b[i] = b[br], b[br] = tmp; // swap b[i] and b[br]
+        std::swap(col[i], col[bc]);
+        for(uint64_t j = 0; j < n; ++j) if (A[j][i] != A[j][bc]) {
+            A[j].flip(i);
+            A[j].flip(bc);
+        }
+        for(uint64_t j = i + 1; j < n; ++j) if (A[j][i]) {
+            b[j] = b[j] ^ b[i]; // no ^= operator for vector<bool> ...
+            A[j] = A[j] ^ A[i];
+        }
+        rank++;
+    }
     std::bitset<M> x;
-    for (size_t col = 0, row = 0; col < M && row < N; ++col) {
-        size_t sel = row;
-        for (size_t i = row; i < N; ++i) {
-            if (A[i][col]) {
-                sel = i;
-                break;
-            }
-        }
-        if (!A[sel][col]) continue; // No pivot in this column, skip it.
-        std::swap(A[sel], A[row]); // Swap rows.
-        if (b[sel] != b[row]) {
-            bool temp = b[sel];
-            b[sel] = b[row];
-            b[row] = temp;
-        }
-
-
-        for (size_t i = 0; i < N; ++i) {
-            if (i != row && A[i][col]) {
-                A[i] ^= A[row]; // Add (XOR) the rows to eliminate column 'col'.
-                b[i] = b[i] != b[row];
-            }
-        }
-        ++row;
+    for (uint64_t i = rank; i--;) {
+        if (!b[i]) continue;
+        x[col[i]] = 1;
+        for(uint64_t j = 0; j < i; ++j) b[j] = b[j] ^ A[j][i]; // again
     }
-
-    // Back substitution (optional here since we work in F2 and assume at least one solution exists).
-    for (size_t i = 0; i < N; ++i) {
-        if (b[i]) {
-            for (size_t j = 0; j < M; ++j) {
-                if (A[i][j]) {
-                    x[j] = b[i];
-                    break;
-                }
-            }
-        }
-    }
-
-    return x; // x is a solution to Ax = b
+    return x;
 }
