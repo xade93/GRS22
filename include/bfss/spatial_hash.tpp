@@ -1,0 +1,40 @@
+#pragma once
+#include "bfss.tpp"
+#include "../okvs.tpp"
+
+// a spatial hash is something that takes 2D (non-negative) integer coordinates, and obliviously return bitstrings (usually bFSS half-shares).
+// this class does not take care of smaller construction, you have to supply serialised sub-bFSS to it. 
+template<int KeyBitLength, int ValueLength, int Lambda>
+struct SpatialHash {
+public:
+    const int KeyLength = 2 * KeyBitLength; // recall we have two keys: X and Y
+    using SerialisedKey = std::bitset<KeyLength>; 
+    using Value = std::bitset<ValueLength>;
+
+    SpatialHash() {
+        static_assert(KeyBitLength <= 31); // to simplify below logic. (2 ** 31) ** 2 should be more than enough
+    }
+
+    // as encoder
+    void insert(uint32_t x, uint32_t y, const Value& value) {
+        // first, we serialise x and y into bitset
+        uint32_t maskLastKBit = (1 << KeyBitLength) - 1;
+        uint32_t cleanX = maskLastKBit & x;
+        uint32_t cleanY = maskLastKBit & y;
+        uint32_t concat = (cleanX << KeyBitLength) | cleanY; // concat two ints together
+        SerialisedKey key(concat);
+
+        // next, insert into map to deduplicate
+        kvs[key] = value;
+    }
+    
+    auto encode() {
+        auto randomSource = std::make_unique<std::random_device>();
+        okvs::RandomBooleanPaXoS<KeyLength, ValueLength, Lambda> okvs(std::move(randomSource));
+
+        std::vector<std::pair<SerialisedKey, Value> kvs_(kvs);
+        okvs.encode(kvs_);
+    }
+protected:
+    std::map<std::pair<SerialisedKey, Value>> kvs;
+};
