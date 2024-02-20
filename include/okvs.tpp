@@ -99,12 +99,11 @@ namespace okvs {
             // compress the 256-bit hash into 64 bit, which is used to seed mt19937_64
             uint64_t prngSeed = 0;
             for (uint64_t i = 0; i < 256; ++i) if (hashed[i]) prngSeed ^= (1ll << (i % 64));
-            std::cout << "streamHash of " << input << "+" << salt << ", yielded seed is " << prngSeed << std::endl; // TODO remove
 
             // finally, generate output vector.
             auto v = std::mt19937_64(prngSeed);
             auto ret = GetBitSequenceFromPRNG<O>(v);
-            std::cout << "yielded hash is " << ret << std::endl;
+
             return ret;
         }
 
@@ -114,20 +113,7 @@ namespace okvs {
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(std::vector<std::pair<Key, Value>> kvs) { // intentionally need to copy kvs
             // TODO there is no need for padding if the hamming weight of v is sufficiently large. 
             // which is also the benefit of this - it depends on the number of entry used.
-            // otherwise this would be so heavy.
-            if (kvs.size() < KeyLength) { // run the padding process if there is insufficient key-value pairs. note random is okay here as space is exponentially larger than number of entrys
-                // std::unordered_set<Key> existKeys;
-                // for (auto& [k, v]: kvs) existKeys.emplace(k);
-
-                // while (kvs.size() < KeyLength) { // TODO check for exit when n is very small
-                //     auto dummyKey = GetBitSequenceFromPRNG<KeyLength>(randomEngine);
-                //     if (existKeys.find(dummyKey) == existKeys.end()) {
-                //         existKeys.emplace(dummyKey);
-                //         auto dummyVal = GetBitSequenceFromPRNG<ValueLength>(randomEngine);
-                //         kvs.emplace_back(dummyKey, dummyVal);
-                //     }
-                // }
-            }
+            // otherwise this would be so heavy
             
             size_t n = kvs.size(); // number of key-value pairs we wish to encode.
             using HashedKey = std::bitset<HashedKeyLength>;
@@ -143,8 +129,6 @@ namespace okvs {
 
                 // next, we check if the generated matrix is linearly independent. 
                 if (isFullRank<HashedKeyLength>(currMatrix)) {
-                    std::cout << "independent matrix A found: \n";
-                    for (auto e: currMatrix) std::cout << e << '\n';
                     EncodedPaXoS encoded;
                     // we enter the encoding phase.
                     // for each of the columns, perform a Ax = b.
@@ -156,8 +140,6 @@ namespace okvs {
                         auto ret = ret_wrapper.value();
                         for (uint64_t j = 0; j < HashedKeyLength; ++j) encoded[j][i] = ret[j]; // copy to encode
                     }
-                    std::cout << "matrix X is: \n";
-                    for (auto e: encoded) std::cout << e << '\n';
                     return std::make_pair(encoded, nonce) ;
                 }
             }
@@ -168,7 +150,7 @@ namespace okvs {
         Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key) {
             Value ret; 
             auto vx = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
-            std::cout << "decode key: " << vx << std::endl;
+
             for (uint64_t i = 0; i < HashedKeyLength; ++i) if (vx[i]) ret = ret ^ encoded[i];
             return ret;
         }
