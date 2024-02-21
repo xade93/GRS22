@@ -1,5 +1,5 @@
 #include <bits/stdc++.h>
-#include "protocol.tpp"
+#include "oblivious_transfer.tpp"
 #include "okvs.tpp"
 
 int main() {

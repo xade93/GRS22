@@ -1,7 +1,7 @@
 #pragma once
 #include <bits/stdc++.h>
 
-// a bFSS class models a class that handles representation of a function f: Key -> Value into exactly two copies of bitstrings.
+// bFSS models a class that handles representation of a function f: Key -> Value into exactly two copies of bitstrings.
 // when used as an encoder, it takes plain text description of function as key-value pairs, and return the encoded secret shares corresponding to that function.
 // when used as an evaluator, it takes exactly one of the two secret shares, and point-evaluates over such secret share. 
 // Usually there is some property guaranteed when evaluating over share: 
@@ -9,7 +9,7 @@
 //  2. share1 and share2 alone are almost random independently.
 // But of course they are not enforced in the syntax.
 
-template<typename Key, typename Value, int ShareLength>
+template<typename Key, typename Value, uint64_t ShareLength>
 class bFSS {
 public:
     using SecretShare = std::bitset<ShareLength>;

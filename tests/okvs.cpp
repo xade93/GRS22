@@ -1,10 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
+#include "common.tpp"
 #include "okvs.tpp"
 
 TEST_CASE("okvs random gen looks correctly", "[okvs]") {
     auto randomSource = std::make_unique<std::random_device>();
     okvs::RandomBooleanPaXoS<6, 8, 2, 10> paxos(std::move(randomSource));
-    auto ret = paxos.GetBitSequenceFromPRNG<50>(paxos.randomEngine);
+    auto ret = GetBitSequenceFromPRNG<50>(paxos.randomEngine);
     std::cout << "generated rng seq: " << ret << std::endl;
 }
 

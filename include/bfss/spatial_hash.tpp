@@ -1,13 +1,13 @@
 #pragma once
 #include "bfss.tpp"
 #include "../okvs.tpp"
-
+#include <unordered_map>
 // a spatial hash is something that takes 2D (non-negative) integer coordinates, and obliviously return bitstrings (usually bFSS half-shares).
 // this class does not take care of smaller construction, you have to supply serialised sub-bFSS to it. 
-template<int KeyBitLength, int ValueLength, int Lambda>
+template<uint64_t KeyBitLength, uint64_t ValueLength, uint64_t Lambda>
 struct SpatialHash {
 public:
-    const static int KeyLength = 2 * KeyBitLength; // recall we have two keys: X and Y
+    const static uint64_t KeyLength = 2 * KeyBitLength; // recall we have two keys: X and Y
     using SerialisedKey = std::bitset<KeyLength>; 
     using Value = std::bitset<ValueLength>;
 

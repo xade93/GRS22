@@ -1,7 +1,9 @@
 #pragma once
-#include <bits/stdc++.h>
+#include <climits>
 #include <openssl/sha.h>
 #include "matrix_tools.tpp"
+#include "common.tpp"
+
 
 // design choices:
 // - XXXXXXXXXXXXXXXXXXXX we need boost::dynamic_bitset instead of std::bitset because OpenSSL SHA256 takes bytestream (8 bits chunk) not std::bitset (>=32 bits chunk),
@@ -68,22 +70,6 @@ namespace okvs {
             randomSource = std::move(RandomSource);
             randomEngine = std::mt19937_64((*randomSource)());
             static_assert(HashedKeyLength <= 64);
-        }
-
-        // Generate pseudorandom bit sequence from PRNG source. 
-        // Note: it alters internal state of the PRNG.
-        // TODO more efficient way due to apparent bit alignment.
-        template<uint64_t L>
-        std::bitset<L> GetBitSequenceFromPRNG(std::mt19937_64& src) {
-            std::bitset<L> bits;
-            for (uint64_t idx = 0; idx < L; idx += 64) {
-                auto val = src();
-                std::bitset<64> currBatch(val);
-                for (uint64_t currBit = idx; currBit < std::min(idx + 64, L); ++currBit) {
-                    bits[currBit] = currBatch[currBit - idx];
-                }
-            }
-            return bits;
         }
 
         // securely hash binary string of length I and salt L to arbitrary length O

@@ -1,5 +1,5 @@
 #pragma once
-#include <bits/stdc++.h>
+#include "common.tpp"
 
 template <size_t N>
 bool isFullRank(const std::vector<std::bitset<N>>& matrix) {
