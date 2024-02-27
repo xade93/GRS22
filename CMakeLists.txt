@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Quality of Life Options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wfatal-errors") # stop compilation at first error
+add_compile_options(-Wno-deprecated-declarations)
 
 # libraries preparation
 find_package(libOTe REQUIRED)
