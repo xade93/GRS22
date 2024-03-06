@@ -4,6 +4,7 @@
 #include "bfss/bfss.tpp"
 
 // truth table (tt) bFSS described in paper.
+// nonspecified keys will map to zero.
 // this handles function whose required description size does not exceed uint64_t, which should be more than enough.
 // due to this constraint, we can simplify key to uint64_t. value still have to be bitset as it can exceed 64 bits.
 template<uint64_t KeyLength, uint64_t ValueLength>
