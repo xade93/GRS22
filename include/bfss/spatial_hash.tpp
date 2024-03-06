@@ -8,6 +8,7 @@ template<uint64_t KeyBitLength, uint64_t ValueLength, uint64_t Lambda>
 struct SpatialHash {
 public:
     const static uint64_t KeyLength = 2 * KeyBitLength; // recall we have two keys: X and Y
+    const static uint64_t OutputSize = ValueLength * (KeyLength + Lambda) + Lambda; // this is the calculated length of final output
     using SerialisedKey = std::bitset<KeyLength>; 
     using Value = std::bitset<ValueLength>;
 
@@ -26,21 +27,21 @@ public:
         kvs[serialize(x, y)] = value;
     }
     
-    std::optional<std::pair<EncodedPaXoS, Nonce>> encode() {
+    std::optional<std::bitset<OutputSize>> encode() {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
 
         std::vector<std::pair<SerialisedKey, Value>> kvs_;
         std::copy(kvs.begin(), kvs.end(), std::back_inserter(kvs_));
 
-        return okvs.encode(kvs_);
+        return okvs.serialize(okvs.encode(kvs_));
     }
 
     // as decoder, we wish to decode;
-    Value decode(const EncodedPaXoS& paxos, const Nonce& nonce, uint32_t x, uint32_t y) {
+    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y) {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
-
+        auto [paxos, nonce] = okvs.deserialize(str);
         return okvs.decode(paxos, nonce, serialize(x, y));
     }
 protected:

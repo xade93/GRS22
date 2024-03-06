@@ -140,5 +140,37 @@ namespace okvs {
             for (uint64_t i = 0; i < HashedKeyLength; ++i) if (vx[i]) ret = ret ^ encoded[i];
             return ret;
         }
+        
+        // helper that serialises result into single bitset.
+        // copies bit by bit, not very efficient. use with caution.
+        // Layout: [ row 1 ][ row 2 ] .... [ row H ][ Nonce ]
+        //         0        V         .... V*(H-1)      V*H
+        Opt<std::bitset<ValueLength * HashedKeyLength + Lambda>> serialize(const Opt<std::pair<EncodedPaXoS, Nonce>>& encoded) {
+            if (encoded.has_value()) {
+                auto [paxos, nc] = encoded.value();
+                std::bitset<ValueLength * HashedKeyLength + Lambda> ret;
+                // copies paxos
+                for (uint64_t i = 0; i < HashedKeyLength; ++i) {
+                    for (uint64_t currBit = 0; currBit < ValueLength; ++currBit) ret[i * ValueLength + currBit] = paxos[i][currBit];
+                }
+                // copies tail
+                for (uint64_t i = 0; i < Lambda; ++i) ret[ValueLength * HashedKeyLength + i] = nc[i];
+                return ret;
+            } else return std::nullopt;
+        }
+
+        // extracts EncodedPaXoS and Nonce from serialised bitstream. see serialize() for note.
+        std::pair<EncodedPaXoS, Nonce> deserialize(const std::bitset<ValueLength * HashedKeyLength + Lambda>& bits) {
+            EncodedPaXoS paxos;
+            Nonce nc;
+
+            // restores paxos
+            for (uint64_t i = 0; i < HashedKeyLength; ++i) {
+                for (uint64_t currBit = 0; currBit < ValueLength; ++currBit) paxos[i][currBit] = bits[i * ValueLength + currBit];
+            }
+            // restores tail
+            for (uint64_t i = 0; i < Lambda; ++i) nc[i] = bits[ValueLength * HashedKeyLength + i];
+            return std::make_pair(paxos, nc);
+        }
     };
 }

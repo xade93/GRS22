@@ -8,8 +8,8 @@ TEST_CASE("Spatial Hash Soundness", "[spatialhash]") {
     auto ret = spatial_hasher.encode();
     REQUIRE(ret != std::nullopt);
 
-    auto [paxos, nonce] = ret.value();
-    auto ret2 = spatial_hasher.decode(paxos, nonce, 12, 21);
+    auto enc = ret.value();
+    auto ret2 = spatial_hasher.decode(enc, 12, 21);
 
     REQUIRE(ret2 == std::bitset<3>(5));
 }
