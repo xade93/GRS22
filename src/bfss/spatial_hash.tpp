@@ -45,7 +45,7 @@ public:
         return okvs.decode(paxos, nonce, serialize(x, y));
     }
 
-    constexpr size_t getOutputSize() {
+    constexpr static size_t getOutputSize() {
         return OutputSize;
     }
 protected:

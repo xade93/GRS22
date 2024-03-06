@@ -6,6 +6,11 @@
 #include <libOTe/TwoChooseOne/Iknp/IknpOtExtReceiver.h>
 #include <libOTe/TwoChooseOne/Iknp/IknpOtExtSender.h>
 
+// for transfer of fingerprints
+#include <cryptoTools/Network/Session.h>
+#include <cryptoTools/Network/IOService.h>
+#include <cryptoTools/Network/Channel.h>
+
 using std::string;
 
 // GRS22's protocol, using tt + spatialhash, over L-infinity norm.
@@ -20,14 +25,13 @@ namespace GRS22_L_infinity_protocol {
         assert(K <= 64);
         if (K == 64) return x;
         else {
-            uint64_t mask = (1ull << K) - 1;
-            return mask & x;
+            return x % (1ull << K);
         }
     }
 
     // set intersection server, holding structure and yielding intersection result. using Iknp on default.
-    template<int bitLength, int Lambda, int NumItem, int L, int radiusBitLength> 
-    std::vector<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP)
+    template<int bitLength, int Lambda, int L, int radiusBitLength> 
+    std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP)
     {
         static_assert(radiusBitLength <= 32); // so that we can (conveniently) perform arithmetic in uint64_t. This should be more than enough, and since below have quadratic complexity, this number is already beyond enough.
         const uint64_t radius = 1ull << radiusBitLength;
@@ -40,7 +44,7 @@ namespace GRS22_L_infinity_protocol {
             return false;
         };
 
-        // step 1. Alice generate L copies of bFSS describing her structure. TODO optimize
+        // step 1. Alice generate L copies of bFSS describing her structure.
         
         // first we partition all points in Alice into cells
         std::map<Point, std::set<Point>> pointsByCell;
@@ -53,19 +57,20 @@ namespace GRS22_L_infinity_protocol {
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.
         const uint64_t truthTableLength = (1ull << (2 * radiusBitLength)); // by calculation we see inner TT size is exactly 4 ^ radiusBitLength. This is also validated by template system.
         const uint64_t okvsKeyLength = 2 * (bitLength - radiusBitLength); // this is also quite obvious
-        const uint64_t shareLength = SpatialHash<bitLength, radius, Lambda>::getOutputSize();
+        using SuitableSpatialHash = SpatialHash<bitLength - radiusBitLength, radius * radius, Lambda>;
+        constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         std::array<std::pair<std::bitset<shareLength>, std::bitset<shareLength>>, L> shares;
 
         for (uint64_t trial = 0; trial < L; ++trial) {
-            SpatialHash<bitLength, radius, Lambda> h0, h1;
+            SuitableSpatialHash h0, h1;
             for (auto& [key, pointSet]: pointsByCell) {
                 const uint64_t l1 = bitLength - radiusBitLength, l2 = radiusBitLength;
                 TruthTable<radiusBitLength * 2, 1> tt;
-                std::vector<std::pair<std::bitset<radiusBitLength * 2>, std::bitset<1>>> cellDescription;
+                std::vector<std::pair<uint64_t, std::bitset<1>>> cellDescription;
 
-                for (auto& [x, y]: pointSet) {
-                    auto encodedKeys = lastKBits(x, radiusBitLength) << radiusBitLength | lastKBits(y, radiusBitLength);
-                    cellDescription.emplace_back(std::bitset<l1>(encodedKeys), std::bitset<1>(1));
+                for (auto& [u, v]: pointSet) {
+                    auto encodedKeys = (u % radius) * radius + v % radius; // only work when radius is some 2 ^ k for int k
+                    cellDescription.emplace_back(encodedKeys, std::bitset<1>(1));
                 }
 
                 auto [share0, share1] = tt.encode(cellDescription);
@@ -79,10 +84,44 @@ namespace GRS22_L_infinity_protocol {
         }
 
         // next, we perform OT for Bob to pick.
-        TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, bitLength, L>(clientIP + port, shares);
+        TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
+
+        // Bob should done evaluating by now. Receive fingerprints from him
+        const int blockCount = (L + 127) / 128;
+        std::vector<std::array<block, blockCount>> fingerprints; // TODO does this work?
+        IOService ios;
+        auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
+        chl.recv(fingerprints);
+
+        // We also generate fingerprint for every element of ours with randomly selected s.
+        std::random_device dev; std::mt19937_64 rng(dev());
+        std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
+
+        std::unordered_map<std::bitset<L>, std::pair<uint64_t, uint64_t>> restoration;
+        
+        for (auto [x, y]: centers) {
+            std::bitset<L> fingerprint;
+            for (uint64_t i = 0; i < L; ++i) {
+                SuitableSpatialHash hash;
+                auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / radius, y / radius);
+                TruthTable<radiusBitLength * 2, 1> tt(inner);
+                std::bitset<1> ret = tt.evaluate((x % radius) * radius + y % radius);
+                fingerprint[i] = ret[0];
+            }
+            restoration[fingerprint] = std::make_pair(x, y);
+        }
+
+        // Final step would be look up the intersection between fingerprint of Alice's and Bob's, which yields result.
+        std::set<Point> intersections;
+        for (const auto& arr: fingerprints) {
+            std::bitset<L> fp = conversion_tools::blocksToBs<L>(arr);
+
+            if (restoration.find(fp) != restoration.end()) intersections.emplace(restoration[fp]);
+        }
+        return intersections;
     }
 
-    template<int bitLength, int Lambda, int NumItem, int L, int radiusBitLength>
+    template<int bitLength, int Lambda, int L, int radiusBitLength>
     void SetIntersectionClient(const std::vector<Point>& points, const string& serverIP) {
         const uint64_t radius = (1ull << radiusBitLength);
         // First, we generate random sequence s
@@ -90,13 +129,31 @@ namespace GRS22_L_infinity_protocol {
         std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
 
         // Next, we perform OT to select the L half-shares from Alice.
-        auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, bitLength, L>(serverIP + port);
+        using SuitableSpatialHash = SpatialHash<bitLength - radiusBitLength, radius * radius, Lambda>;
+        constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
+        auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
 
         // We evaluate each of our point against the L half-shares, yielding L-bit long "fingerprint" for each item of ours.
-        for (auto [u, v]: points) {
+        // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
+        // In practice since error probability is (1 / 2) ^ L, L would hardly ever be larger than 128.
+        const int blockCount = (L + 127) / 128;
+        std::vector<std::array<block, blockCount>> fingerprints(points.size());
+        for (uint64_t pointIdx = 0; pointIdx < points.size(); ++pointIdx) {
+            auto [u, v] = points[pointIdx];
+            std::bitset<L> fp;
             for (uint64_t idx = 0; idx < L; ++idx) {
-                // SpatialHash<bitLength, radius, Lambda> hash()
+                SuitableSpatialHash hash;
+                auto inner = hash.decode(ret[idx], u / radius, v / radius);
+                TruthTable<radiusBitLength * 2, 1> tt(inner);
+                std::bitset<1> ret = tt.evaluate((u % radius) * radius + v % radius);
+                fp[idx] = ret[0];
             }
+            fingerprints[pointIdx] = conversion_tools::bsToBlocks<L>(fp);
         }
+
+        // We transfer such fingerprints back to Alice. Bob's part is now complete.
+        IOService ios;
+        auto chl = Session(ios, serverIP + port, SessionMode::Server).addChannel();
+        chl.send(std::move(fingerprints));
     }
 }

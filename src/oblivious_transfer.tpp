@@ -71,7 +71,6 @@ namespace conversion_tools {
     }
 }
 
-
 // signature of sender and receiver is different, so I have to write two functions instead of one.
 // this is just a wrapper that handles networking, mostly modified from TwoChooseOne example in libOTe.
 // also change the format to what we are using (std::pair, std::bitset, std::vector)
