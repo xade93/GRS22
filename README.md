@@ -1,9 +1,21 @@
 This is a C++20 implementation of GRS22's [Structure-Aware Private Set Intersection, With Applications to Fuzzy Matching](https://eprint.iacr.org/2022/1011). 
 
-Since we use `std::bitset<>` as main medium of storage, most of the code is in .tpp and in `include` folder.
-`/test` folder contains unit tests written with Catch2, which also serves the purpose of usage examples. 
+## Assumptions
+We assume 
+1. `sizeof(long) == 8` (which should hold on most modern machines);
+2. Host CPU is capable of AESNI operations. Over Linux this can be checked via `grep -o aes /proc/cpuinfo`.  Again this should hold on most reasonably modern machines.
 
-# Installation
+## Project Structure
+- `/src` contains sources. Since we use `std::bitset` as main mode of storage, most of the code is in .tpp and no separation of interface and implementation is possible.
+    - `bfss/*` defines `(1, 1)-bFSS`, and implements *Spatial Hash* and *Truth Table* bFSS as described by paper.
+    - `matrix_tools.tpp` contains basic linear algebra tools for working over $(\mathbb{F}_2)^q$.
+    - `oblivious_transfer_short.tpp` contains wrapper for libOTe's oblivious transfer, except that it supports arbitrary length OT via hybrid encryption.
+    - `oblivious_transfer.tpp` contains wrapper fro libOTe's oblivious transfer, limited to <=128bit only. This file is currently not used.
+    - `okvs.tpp` contains oblivious key-value storage via random boolean matrix method, described in [PSI from PaXoS: Fast, Malicious Private Set Intersection](https://eprint.iacr.org/2020/193)
+    - `protocol.tpp` contains implementation for the PSI protocol, using all above.
+- `/test` folder contains unit tests written with Catch2, which also serves the purpose of usage examples. 
+
+## Installation
 To reproduce in Docker container:
 ```bash
 docker pull archlinux
@@ -12,7 +24,7 @@ docker exec -it garimella bash
 pacman -Syyuu
 pacman -S python vim make wget curl git gcc autoconf automake pkgconf cmake openssh
 ```
-Then, install libOTe:
+Then, install libOTe (note below instructions are copied from libOTe page, and may subject to change over time):
 ```bash
 pacman -S libtool
 git clone https://github.com/osu-crypto/libOTe.git
@@ -28,4 +40,4 @@ mkdir build/
 cmake -DCMAKE_BUILD_TYPE=Release
 make -j
 ```
-The exectuable generated are `./tests` and `./garimella`. The latter one is a frontend that is work in progress.
+The exectuables generated are `./tests` and `./garimella`. The latter one is a frontend that is work in progress.

@@ -44,6 +44,10 @@ public:
         auto [paxos, nonce] = okvs.deserialize(str);
         return okvs.decode(paxos, nonce, serialize(x, y));
     }
+
+    constexpr size_t getOutputSize() {
+        return OutputSize;
+    }
 protected:
     SerialisedKey serialize(uint32_t x, uint32_t y) {
         uint32_t maskLastKBit = (1 << KeyBitLength) - 1;

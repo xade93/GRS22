@@ -20,12 +20,12 @@ file(GLOB TESTS "tests/*.cpp")
 # compile main target
 add_executable(garimella ${SOURCES} main.cpp)
 
-target_include_directories(garimella PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(garimella PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(garimella oc::libOTe OpenSSL::SSL OpenSSL::Crypto)
 
 # compile test target
 find_package(Catch2 3 REQUIRED)
 
 add_executable(tests ${SOURCES} ${TESTS})
-target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain oc::libOTe OpenSSL::SSL OpenSSL::Crypto)
