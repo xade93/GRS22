@@ -11,6 +11,8 @@
 #include <cryptoTools/Network/IOService.h>
 #include <cryptoTools/Network/Channel.h>
 
+#include <dbg.h>
+
 using std::string;
 
 // GRS22's protocol, using tt + spatialhash, over L-infinity norm.
@@ -30,12 +32,12 @@ namespace GRS22_L_infinity_protocol {
     }
 
     // set intersection server, holding structure and yielding intersection result. using Iknp on default.
-    template<int bitLength, int Lambda, int L, int radiusBitLength> 
-    std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP)
+    template<int bitLength, int Lambda, int L, int cellBitLength> 
+    std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP, uint32_t radius)
     {
-        static_assert(radiusBitLength <= 32); // so that we can (conveniently) perform arithmetic in uint64_t. This should be more than enough, and since below have quadratic complexity, this number is already beyond enough.
-        const uint64_t radius = 1ull << radiusBitLength;
-        auto membership = [](const std::vector<Point>& centers, uint64_t x, uint64_t y) { // TODO optimize
+        static_assert(cellBitLength <= 32); // so that we can (conveniently) perform arithmetic in uint64_t. This should be more than enough, and since below have quadratic complexity, this number is already beyond enough.
+        const uint64_t cellLength = 1ull << cellBitLength;
+        auto membership = [&radius](const std::vector<Point>& centers, uint64_t x, uint64_t y) { // TODO optimize
             for (auto [currX, currY]: centers) {
                 if (std::max(
                     std::abs((int64_t)currX - (int64_t)x), 
@@ -43,33 +45,34 @@ namespace GRS22_L_infinity_protocol {
             }
             return false;
         };
-
         // step 1. Alice generate L copies of bFSS describing her structure.
         
         // first we partition all points in Alice into cells
         std::map<Point, std::set<Point>> pointsByCell;
         for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
             for (uint64_t y = 0; y < (1ull << bitLength); ++y) {
-                if (membership(centers, x, y)) pointsByCell[std::make_pair<uint64_t, uint64_t>(x / radius, y / radius)].emplace(x, y);
+                if (membership(centers, x, y)) pointsByCell[std::make_pair<uint64_t, uint64_t>(x / cellLength, y / cellLength)].emplace(x, y);
             }
         }
+
+        dbg(pointsByCell);
         // now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.
-        const uint64_t truthTableLength = (1ull << (2 * radiusBitLength)); // by calculation we see inner TT size is exactly 4 ^ radiusBitLength. This is also validated by template system.
-        const uint64_t okvsKeyLength = 2 * (bitLength - radiusBitLength); // this is also quite obvious
-        using SuitableSpatialHash = SpatialHash<bitLength - radiusBitLength, radius * radius, Lambda>;
+        const uint64_t truthTableLength = (1ull << (2 * cellBitLength)); // by calculation we see inner TT size is exactly 4 ^ cellBitLength. This is also validated by template system.
+        const uint64_t okvsKeyLength = 2 * (bitLength - cellBitLength); // this is also quite obvious
+        using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, cellLength * cellLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         std::array<std::pair<std::bitset<shareLength>, std::bitset<shareLength>>, L> shares;
 
         for (uint64_t trial = 0; trial < L; ++trial) {
             SuitableSpatialHash h0, h1;
             for (auto& [key, pointSet]: pointsByCell) {
-                const uint64_t l1 = bitLength - radiusBitLength, l2 = radiusBitLength;
-                TruthTable<radiusBitLength * 2, 1> tt;
+                const uint64_t l1 = bitLength - cellBitLength, l2 = cellBitLength;
+                TruthTable<cellBitLength * 2, 1> tt;
                 std::vector<std::pair<uint64_t, std::bitset<1>>> cellDescription;
 
                 for (auto& [u, v]: pointSet) {
-                    auto encodedKeys = (u % radius) * radius + v % radius; // only work when radius is some 2 ^ k for int k
+                    auto encodedKeys = (u % cellLength) * cellLength + v % cellLength; // only work when cellLength is some 2 ^ k for int k
                     cellDescription.emplace_back(encodedKeys, std::bitset<1>(1));
                 }
 
@@ -83,6 +86,8 @@ namespace GRS22_L_infinity_protocol {
             shares[trial] = std::make_pair(v0, v1);
         }
 
+        dbg(shares);
+
         // next, we perform OT for Bob to pick.
         TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
 
@@ -93,23 +98,28 @@ namespace GRS22_L_infinity_protocol {
         auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
         chl.recv(fingerprints);
 
+        dbg(fingerprints);
+
         // We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
         std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
 
         std::unordered_map<std::bitset<L>, std::pair<uint64_t, uint64_t>> restoration;
-        
-        for (auto [x, y]: centers) {
-            std::bitset<L> fingerprint;
-            for (uint64_t i = 0; i < L; ++i) {
-                SuitableSpatialHash hash;
-                auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / radius, y / radius);
-                TruthTable<radiusBitLength * 2, 1> tt(inner);
-                std::bitset<1> ret = tt.evaluate((x % radius) * radius + y % radius);
-                fingerprint[i] = ret[0];
+        for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
+            for (uint64_t y = 0; y < (1ull << bitLength); ++y) if (membership(centers, x, y))  {
+                std::bitset<L> fingerprint;
+                for (uint64_t i = 0; i < L; ++i) {
+                    SuitableSpatialHash hash;
+                    auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / cellLength, y / cellLength);
+                    TruthTable<cellBitLength * 2, 1> tt(inner);
+                    std::bitset<1> ret = tt.evaluate((x % cellLength) * cellLength + y % cellLength);
+                    fingerprint[i] = ret[0];
+                }
+                restoration[fingerprint] = std::make_pair(x, y); // TODO note here collision
             }
-            restoration[fingerprint] = std::make_pair(x, y);
         }
+
+        dbg(restoration);
 
         // Final step would be look up the intersection between fingerprint of Alice's and Bob's, which yields result.
         std::set<Point> intersections;
@@ -121,18 +131,19 @@ namespace GRS22_L_infinity_protocol {
         return intersections;
     }
 
-    template<int bitLength, int Lambda, int L, int radiusBitLength>
+    template<int bitLength, int Lambda, int L, int cellBitLength>
     void SetIntersectionClient(const std::vector<Point>& points, const string& serverIP) {
-        const uint64_t radius = (1ull << radiusBitLength);
+        const uint64_t cellLength = (1ull << cellBitLength);
         // First, we generate random sequence s
         std::random_device dev; std::mt19937_64 rng(dev());
         std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
+        dbg(s);
 
         // Next, we perform OT to select the L half-shares from Alice.
-        using SuitableSpatialHash = SpatialHash<bitLength - radiusBitLength, radius * radius, Lambda>;
+        using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, cellLength * cellLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
-
+        dbg(ret);
         // We evaluate each of our point against the L half-shares, yielding L-bit long "fingerprint" for each item of ours.
         // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
         // In practice since error probability is (1 / 2) ^ L, L would hardly ever be larger than 128.
@@ -143,13 +154,15 @@ namespace GRS22_L_infinity_protocol {
             std::bitset<L> fp;
             for (uint64_t idx = 0; idx < L; ++idx) {
                 SuitableSpatialHash hash;
-                auto inner = hash.decode(ret[idx], u / radius, v / radius);
-                TruthTable<radiusBitLength * 2, 1> tt(inner);
-                std::bitset<1> ret = tt.evaluate((u % radius) * radius + v % radius);
+                auto inner = hash.decode(ret[idx], u / cellLength, v / cellLength);
+                TruthTable<cellBitLength * 2, 1> tt(inner);
+                std::bitset<1> ret = tt.evaluate((u % cellLength) * cellLength + v % cellLength);
                 fp[idx] = ret[0];
             }
+            dbg(fp);
             fingerprints[pointIdx] = conversion_tools::bsToBlocks<L>(fp);
         }
+        dbg(fingerprints);
 
         // We transfer such fingerprints back to Alice. Bob's part is now complete.
         IOService ios;
