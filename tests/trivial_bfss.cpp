@@ -14,4 +14,7 @@ TEST_CASE("Trivial bFSS Soundness", "[trivialbfss]") {
 
     auto val2 = decoder1.evaluate(3) ^ decoder2.evaluate(3);
     REQUIRE(val2 == std::bitset<2>(01));
+    
+    auto val3 = decoder1.evaluate(1) ^ decoder2.evaluate(1);
+    REQUIRE(val3 == std::bitset<2>(11)); // nonspecified element evaluate to all 1s
 }

@@ -3,8 +3,7 @@
 #include "common.tpp"
 #include "bfss/bfss.tpp"
 
-// truth table (tt) bFSS described in paper.
-// nonspecified keys will map to zero.
+// truth table (tt) bFSS described in paper. nonspecified keys will map to all 1s on default (reason see below)
 // this handles function whose required description size does not exceed uint64_t, which should be more than enough.
 // due to this constraint, we can simplify key to uint64_t. value still have to be bitset as it can exceed 64 bits.
 template<uint64_t KeyLength, uint64_t ValueLength>
@@ -26,14 +25,16 @@ public:
         std::mt19937_64 rng(dev());
         // generate enough randomness for secret sharing, and fill onto secret shares
         auto pad = GetBitSequenceFromPRNG<ShareLength>(rng); 
-        SecretPair ret;
-        ret.first = ret.second = pad;
+        
+        // nonspecified keys will evaluate to all 1s by default 
+        // why? this is for convenience of encoding set membership, as nonzero means "not in set" using notation in paper
+        SecretPair ret(pad, ~pad);
 
-        // now XOR the values into pad; nonspecified keys will evaluate to 0 by default
+        // now XOR the values into pad; 
         for (const auto& [Key, Value]: data) {
             for (uint64_t currBit = 0; currBit < ValueLength; ++currBit) {
                 uint64_t offset = Key * ValueLength + currBit;
-                ret.second[offset] = ret.second[offset] ^ Value[currBit];
+                ret.second[offset] = ret.first[offset] ^ Value[currBit];
             }
         }
         return ret;
