@@ -33,7 +33,7 @@ TEST_CASE("Oblivious Transfer Interface (short message)", "[libOTe]") {
     thrd.join();
 
     for (uint64_t idx = 0; idx < n; ++idx) {
-        std::cout << "oblivious transfer returned " << ret[idx] << std::endl;
+        std::cout << "oblivious transfer (short) returned " << ret[idx] << std::endl;
         REQUIRE(ret[idx] == (choice[idx] ? content[idx].second : content[idx].first));
     }
 }

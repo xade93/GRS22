@@ -6,36 +6,46 @@
 #include <libOTe/TwoChooseOne/Iknp/IknpOtExtSender.h>
 
 TEST_CASE("AES encryption/decryption and serialisation of long message", "[cryptoTools]") {
+    const int messageLength = 1025;
+    const int packetCount = (messageLength + 127) / 128;
+
     block key(12345, 67890);
-    // generate a random sequence of 4 * 128 - 1 length, so that we can test a sufficient long example that also reveal problem in endianness / not divisible case
+    // generate a random sequence of 1025 messageLength, so that we can test a sufficient long example that also reveal problem in endianness / not divisible case
     
     std::random_device dev; std::mt19937_64 rng(dev());
-    std::bitset<511> bs = GetBitSequenceFromPRNG<511>(rng);
-    std::cout << "generated random sequence: " << bs << std::endl;
+    std::bitset<messageLength> bs = GetBitSequenceFromPRNG<messageLength>(rng);
+    // std::cout << "generated random sequence: " << bs << std::endl;
 
-    auto enc = aesEncrypt<4>(conversion_tools::bsToBlocks<511>(bs), key);
-    auto dec = conversion_tools::blocksToBs<511>(aesDecrypt<4>(enc, key));
+    auto enc = aesEncrypt<packetCount>(conversion_tools::bsToBlocks<messageLength>(bs), key);
+    auto dec = conversion_tools::blocksToBs<messageLength>(aesDecrypt<packetCount>(enc, key));
     
     REQUIRE(dec == bs);
+
+    block key2(12345, 67891);
+    auto dec2 = conversion_tools::blocksToBs<messageLength>(aesDecrypt<packetCount>(enc, key2));
+    REQUIRE(dec2 != bs);
 }
 
 TEST_CASE("Oblivious Transfer Interface (long message)", "[libOTe]") {
-    const int n = 4;
+    const int n = 5;
+    const int bitLength = 1025;
+
+    std::random_device dev; std::mt19937_64 rng(dev());
     std::string ip = "localhost";
-    const int bitLength = 64;
+    
     using Element = std::bitset<bitLength>;
-    std::array<std::pair<Element, Element>, n> content = {{
-        {Element(114514), Element(1919810)},
-        {Element(12), Element(16)},
-        {Element(1ull << 4), Element(1ull << 15)},
-        {Element(0), Element(1)}
-    }};
+
+    auto randElem = [&]() {return GetBitSequenceFromPRNG<bitLength>(rng); };
+
+    // init an random array
+    std::array<std::pair<Element, Element>, n> content;
+    for (auto& [u, v]: content) u = randElem(), v = randElem();
 
     auto thrd = std::thread([&] {
         CHECK_NOTHROW(TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, bitLength, n>(ip, content));
     });
 
-    std::bitset<n> choice(0b1010);
+    std::bitset<n> choice = GetBitSequenceFromPRNG<n>(rng);
     std::array<Element, n> ret;
     CHECK_NOTHROW(ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, bitLength, n>(ip, choice));
     thrd.join();

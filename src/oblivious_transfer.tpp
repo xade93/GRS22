@@ -11,6 +11,9 @@
 #include <cryptoTools/Network/IOService.h>
 #include <cryptoTools/Network/Channel.h>
 
+// debugging FIXME
+#include <dbg.h>
+
 #include "common.tpp"
 using namespace osuCrypto;
 
@@ -77,8 +80,6 @@ namespace conversion_tools {
 // note it seems that libOTe by default only OT over a "block" (128 bit). i.e. it does not take care of symmetric encryption part that is used to extend OT size past 128 bits.
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std::bitset<BitLength>, std::bitset<BitLength>>, NumItems>& content) {
-    static_assert(BitLength <= 128); // we are not using AES to hybrid encrypt, so our OT length is limited to at most 1 block (128 bits).
-
     const int PacketCount = (BitLength + 127) / 128; // since a block is 128 bit, we need ceil(BitLength / 128) copies of block to represent a bitset.
     using Serialised = std::array<block, PacketCount>;
 
@@ -116,8 +117,6 @@ void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std
 
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 std::array<std::bitset<BitLength>, NumItems> TwoChooseOne_Receiver(std::string sender_ip, const std::bitset<NumItems>& choice_) {
-    static_assert(BitLength <= 128); // we are not using AES to hybrid encrypt, so our OT length is limited to at most 1 block (128 bits).
-    
     const int PacketCount = (BitLength + 127) / 128;
     using Serialised = std::array<block, PacketCount>;
 
@@ -141,7 +140,7 @@ std::array<std::bitset<BitLength>, NumItems> TwoChooseOne_Receiver(std::string s
 
     // now having received key via OT, we decrypt the respective choices.
 
-    std::vector<std::array<Serialised, 2>> EncryptedContents(NumItems);
+    std::vector<std::array<Serialised, PacketCount * 2>> EncryptedContents(NumItems);
     // receive the struct with cryptoTools wrapper
     IOService ios;
     auto chl2 = Session(ios, sender_ip + port2, SessionMode::Client).addChannel();
