@@ -141,7 +141,7 @@ namespace okvs {
             return ret;
         }
         
-        // helper that serialises result into single bitset.
+        // helper function that serialises PaXoS given into single bitset.
         // copies bit by bit, not very efficient. use with caution.
         // Layout: [ row 1 ][ row 2 ] .... [ row H ][ Nonce ]
         //         0        V         .... V*(H-1)      V*H

@@ -31,7 +31,7 @@ namespace GRS22_L_infinity_protocol {
         }
     }
 
-    // set intersection server, holding structure and yielding intersection result. using Iknp on default.
+    // Set intersection server, holding structure and yielding intersection result. using Iknp as OT protocol on default.
     template<int bitLength, int Lambda, int L, int cellBitLength> 
     std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP, uint32_t radius)
     {
@@ -48,12 +48,17 @@ namespace GRS22_L_infinity_protocol {
         // step 1. Alice generate L copies of bFSS describing her structure.
         
         // first we partition all points in Alice into cells
+        uint64_t AliceExpandedPointsCount = 0;
         std::map<Point, std::set<Point>> pointsByCell;
         for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
             for (uint64_t y = 0; y < (1ull << bitLength); ++y) {
-                if (membership(centers, x, y)) pointsByCell[std::make_pair<uint64_t, uint64_t>(x / cellLength, y / cellLength)].emplace(x, y);
+                if (membership(centers, x, y)) {
+                    pointsByCell[std::make_pair<uint64_t, uint64_t>(x / cellLength, y / cellLength)].emplace(x, y);
+                    AliceExpandedPointsCount++;
+                }
             }
         }
+        std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
 
         dbg(pointsByCell);
         // now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
@@ -73,7 +78,7 @@ namespace GRS22_L_infinity_protocol {
 
                 for (auto& [u, v]: pointSet) {
                     auto encodedKeys = (u % cellLength) * cellLength + v % cellLength; // only work when cellLength is some 2 ^ k for int k
-                    cellDescription.emplace_back(encodedKeys, std::bitset<1>(1));
+                    cellDescription.emplace_back(encodedKeys, std::bitset<1>(0)); // recall zero means inside, non-zero means outside, as described in paper.
                 }
 
                 auto [share0, share1] = tt.encode(cellDescription);
