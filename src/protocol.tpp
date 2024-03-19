@@ -18,11 +18,11 @@ using std::string;
 // GRS22's protocol, using tt + spatialhash, over L-infinity norm.
 // server is the one holding structure, and also the one receiving final intersection.
 // client receive nothing on default.
-// TODO explanation on arguments
 namespace GRS22_L_infinity_protocol {
     using Point = std::pair<uint64_t, uint64_t>;
     const std::string port = ":2468"; // start with :
-    // aux function
+
+    // aux function that takes last K bits of a 64 bit integer x.
     uint64_t lastKBits(uint64_t x, int K) {
         assert(K <= 64);
         if (K == 64) return x;
@@ -31,7 +31,15 @@ namespace GRS22_L_infinity_protocol {
         }
     }
 
-    // Set intersection server, holding structure and yielding intersection result. using Iknp as OT protocol on default.
+    // Set intersection server, holding structure and yielding intersection result. 
+    // use Iknp as OT protocol on default.
+    // @param bitLength     the length in bits of the point axis (e.g. if X, Y <= 256 then bitLength is 8)
+    // @param Lambda        the number of extra columns for OKVS (see PaXoS paper)
+    // @param L             the number of instances OT will be performed. Usually Increasing this decrease error probability exponentially.
+    // @param cellBitLength the length of bits of the cell. Here we restrict the length to be powers of two, so that coding can be a bit easier. In practice radius can be of any value, and not have to be powers of two.
+    // @param centers       the vector of points storing center of Alice's balls.
+    // @param clientIP      IP of client. Port is not needed and is setted above.
+    // @param radius        radius of Alice's spheres.
     template<int bitLength, int Lambda, int L, int cellBitLength> 
     std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP, uint32_t radius)
     {
@@ -136,6 +144,14 @@ namespace GRS22_L_infinity_protocol {
         return intersections;
     }
 
+    // Set intersection client, holding unstructued points and yield nothing. 
+    // use Iknp as OT protocol on default.
+    // @param bitLength     the length in bits of the point axis (e.g. if X, Y <= 256 then bitLength is 8)
+    // @param Lambda        the number of extra columns for OKVS (see PaXoS paper)
+    // @param L             the number of instances OT will be performed. Usually Increasing this decrease error probability exponentially.
+    // @param cellBitLength the length of bits of the cell. Here we restrict the length to be powers of two, so that coding can be a bit easier. In practice radius can be of any value, and not have to be powers of two.
+    // @param points        the vector of Bob's points.
+    // @param serverIP      IP of server. Port is not needed and is setted above.
     template<int bitLength, int Lambda, int L, int cellBitLength>
     void SetIntersectionClient(const std::vector<Point>& points, const string& serverIP) {
         const uint64_t cellLength = (1ull << cellBitLength);
@@ -149,6 +165,7 @@ namespace GRS22_L_infinity_protocol {
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
         dbg(ret);
+        
         // We evaluate each of our point against the L half-shares, yielding L-bit long "fingerprint" for each item of ours.
         // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
         // In practice since error probability is (1 / 2) ^ L, L would hardly ever be larger than 128.

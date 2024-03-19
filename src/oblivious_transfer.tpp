@@ -38,7 +38,6 @@ std::array<block, N> aesDecrypt(std::array<block, N> data, const block key) {
 
 // primitive conversion tools between libOTe's block type and STL bitset.
 namespace conversion_tools {
-
     // return last 64 bits of a bitset as uint64_t. pad topmost bits with 0 if bitset is less than 64 bits.
     // this servers as replacement for std::bitset<>::to_ulong() as it throws error when result cant fit in 64 bits.
     template<int N>
@@ -74,10 +73,9 @@ namespace conversion_tools {
     }
 }
 
-// signature of sender and receiver is different, so I have to write two functions instead of one.
-// this is just a wrapper that handles networking, mostly modified from TwoChooseOne example in libOTe.
-// also change the format to what we are using (std::pair, std::bitset, std::vector)
-// note it seems that libOTe by default only OT over a "block" (128 bit). i.e. it does not take care of symmetric encryption part that is used to extend OT size past 128 bits.
+// wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)
+// this version also handles the hybrid encryption, so it supports OT of arbitrary length rather than 128 bits only.
+// Since signature of sender and receiver is different, I have to write two functions instead of one.
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std::bitset<BitLength>, std::bitset<BitLength>>, NumItems>& content) {
     const int PacketCount = (BitLength + 127) / 128; // since a block is 128 bit, we need ceil(BitLength / 128) copies of block to represent a bitset.
@@ -115,6 +113,9 @@ void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std
     chl2.send(std::move(EncryptedContents));
 }
 
+// wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)
+// this version also handles the hybrid encryption, so it supports OT of arbitrary length rather than 128 bits only.
+// Since signature of sender and receiver is different, I have to write two functions instead of one.
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 std::array<std::bitset<BitLength>, NumItems> TwoChooseOne_Receiver(std::string sender_ip, const std::bitset<NumItems>& choice_) {
     const int PacketCount = (BitLength + 127) / 128;

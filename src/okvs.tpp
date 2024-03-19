@@ -4,16 +4,6 @@
 #include "matrix_tools.tpp"
 #include "common.tpp"
 
-
-// design choices:
-// - XXXXXXXXXXXXXXXXXXXX we need boost::dynamic_bitset instead of std::bitset because OpenSSL SHA256 takes bytestream (8 bits chunk) not std::bitset (>=32 bits chunk),
-//   and I want to avoid reinvent that wheel. This loses 4-8x speed on field addition ops, but should not matter.
-// - KeyLength, ValueLength etc. are stored as compile-time constants instead of runtime arguments. This can work both ways as one can argue user can only select from profiles determined by experts.
-//   I store as template variables s.t. std::bitset have slightly tighter memory usage bound. 
-// - std::bitset is used where std::vector<bool> or std::array<bool, N> can be used. This is just my personal preference.
-
-// I think at the end of the day, it exposes too much implementation details & minor performance issues that decision is no longer trivial.
-
 namespace okvs {
     // wrapper for OpenSSL SHA256
     template<uint64_t I> 
@@ -46,14 +36,13 @@ namespace okvs {
         return ret;
     };
     
-    // PaXoS
-    // not sure how to select random engine polymorphism or template; persistent with std::function and static variable seems ugly;
-    // I will stick to mt19937_64 for now. TODO change to CSPRNG
+    // PaXoS using Random Boolean Matrix method (as described in "PSI from PaXoS: Fast, Malicious Private Set Intersection")
+    // basically encoding is just randomly generate v until the matrix is full rank, then solve a AX=B under GF_{ValueLength} field.
     // mt19937 is used in 2 places: 1) act as RNG source in lambda string 2) act as 'hasher'
     // also stick to SHA256 for hashing.
     template<uint64_t KeyLength, uint64_t ValueLength, uint64_t Lambda, uint64_t MaxEncodingAttempt = 10>
     struct RandomBooleanPaXoS {
-    public: // TODO change back to private
+    protected:
         std::mt19937_64 randomEngine;
         std::unique_ptr<std::random_device> randomSource;
         static constexpr uint64_t HashedKeyLength = KeyLength + Lambda;
@@ -77,8 +66,7 @@ namespace okvs {
         template<uint64_t I, uint64_t L, uint64_t O> 
         std::bitset<O> streamHash(const std::bitset<I>& input, const std::bitset<L>& salt) {
             // hash salted input via SHA256.
-            // TODO fix this concat
-            std::bitset<I + L> combinedInput(input.to_string() + salt.to_string()); // note this essentially "Reverse" them, due to bitset print MSB first
+            std::bitset<I + L> combinedInput(input.to_string() + salt.to_string()); // note this essentially "Reverse" them, due to bitset print MSB first. not very efficient
 
             std::bitset<256> hashed = SHA256Hash<I + L>(combinedInput);
 
@@ -93,19 +81,15 @@ namespace okvs {
             return ret;
         }
 
-        // encode function optionally returns (1) the encoded vector (2) the nonce. 
-        // Returns nullopt when fail to encode due to exceeding trial attempts.
-        // will pad the kvs if not have sufficient entry 
+        // encodes the PaXoS, from key-value pairs.
+        // returns (1) the encoded vector (2) the nonce, or std::nullopt if the encoding process failed.
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(std::vector<std::pair<Key, Value>> kvs) { // intentionally need to copy kvs
-            // TODO there is no need for padding if the hamming weight of v is sufficiently large. 
-            // which is also the benefit of this - it depends on the number of entry used.
-            // otherwise this would be so heavy
-            
+            // there is no need for padding if the hamming weight of v is sufficiently large (which is the case since v is random, hamming weight is half of bitlength).
             size_t n = kvs.size(); // number of key-value pairs we wish to encode.
             using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
                 // firstly, we generate the whole encoded matrix.
-                auto nonce = Nonce();// FIXME GetBitSequenceFromPRNG<Lambda>(randomEngine);
+                auto nonce = GetBitSequenceFromPRNG<Lambda>(randomEngine);
                 std::vector<HashedKey> currMatrix;
                 for (auto& [key, value]: kvs) { // for each key[i], evaluate v(key[i]). note v in paper is implemented as streamHash here
                     auto encodedKey = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
@@ -132,6 +116,7 @@ namespace okvs {
             return std::nullopt;
         }
 
+        // decode a PaXoS from some key.
         // decoding always succeed, and is equivalent to MUXing paxos by selected bits.
         Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key) {
             Value ret; 

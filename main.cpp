@@ -2,7 +2,7 @@
 #include "protocol.tpp"
 
 int main() {
-    std::cout << "Frontend WIP. Please run test executable instead and view code to see usage.\n";
+    std::cout << "Please also check out code in test/ folder to see usage.\n";
     const int bitLength = 4, Lambda = 20, L = 60, cellBitLength = 1;
     std::vector<std::pair<uint64_t, uint64_t>> centers = {
         {1, 1},

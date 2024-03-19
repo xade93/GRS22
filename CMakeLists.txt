@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.20)
-project(garimella VERSION 0.1)
+project(grs22 VERSION 0.1)
 
 set(CMAKE_CXX_STANDARD 20) # Use C++20
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,10 +18,10 @@ file(GLOB SOURCES "src/*.cpp")
 file(GLOB TESTS "tests/*.cpp")
 
 # compile main target
-add_executable(garimella ${SOURCES} main.cpp)
+add_executable(grs22 ${SOURCES} main.cpp)
 
-target_include_directories(garimella PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(garimella oc::libOTe OpenSSL::SSL OpenSSL::Crypto)
+target_include_directories(grs22 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(grs22 oc::libOTe OpenSSL::SSL OpenSSL::Crypto)
 
 # compile test target
 find_package(Catch2 3 REQUIRED)

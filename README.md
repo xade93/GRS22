@@ -7,7 +7,7 @@ We assume
 
 ## Project Structure
 - `/src` contains sources. Since we use `std::bitset` as main mode of storage, most of the code is in .tpp and no separation of interface and implementation is possible.
-    - `bfss/*` defines `(1, 1)-bFSS`, and implements *Spatial Hash* and *Truth Table* bFSS as described by paper.
+    - `bfss/*` defines `(p, 1)-bFSS`, and implements *Spatial Hash* and *Truth Table* bFSS as described by paper.
     - `matrix_tools.tpp` contains basic linear algebra tools for working over $(\mathbb{F}_2)^q$.
     - `oblivious_transfer_short.tpp` contains wrapper for libOTe's oblivious transfer, limited to <=128bit only. This file is currently not used.
     - `oblivious_transfer.tpp` contains wrapper fro libOTe's oblivious transfer, except that it supports arbitrary length OT via hybrid encryption.
@@ -40,4 +40,4 @@ mkdir build/
 cmake -DCMAKE_BUILD_TYPE=Release
 make -j
 ```
-The exectuables generated are `./tests` and `./garimella`. The latter one is a frontend that is work in progress.
+The exectuables generated are `./tests` and `./grs22`. The latter one is a frontend that is work in progress.

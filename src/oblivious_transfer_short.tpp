@@ -9,7 +9,7 @@
 #include "common.tpp"
 using namespace osuCrypto;
 
-static std::string port = ":1234"; // start with :
+static std::string port = ":1234"; // the port used for network transfer, starting with :
 
 // primitive conversion tools between libOTe's block type and STL bitset.
 namespace conversion_tools {
@@ -34,10 +34,10 @@ namespace conversion_tools {
     }
 }
 
-// signature of sender and receiver is different, so I have to write two functions instead of one.
-// this is just a wrapper that handles networking, mostly modified from TwoChooseOne example in libOTe.
-// also change the format to what we are using (std::pair, std::bitset, std::vector)
+
+// wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)
 // note it seems that libOTe by default only OT over a "block" (128 bit). i.e. it does not take care of symmetric encryption part that is used to extend OT size past 128 bits.
+// Since signature of sender and receiver is different, I have to write two functions instead of one.
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 void TwoChooseOne_Sender_Short(std::string receiver_ip, const std::array<std::pair<std::bitset<BitLength>, std::bitset<BitLength>>, NumItems>& content) {
     static_assert(BitLength <= 128); // we are not using AES to hybrid encrypt, so our OT length is limited to at most 1 block (128 bits).
@@ -65,6 +65,9 @@ void TwoChooseOne_Sender_Short(std::string receiver_ip, const std::array<std::pa
     cp::sync_wait(chl.flush());
 }
 
+// wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)
+// note it seems that libOTe by default only OT over a "block" (128 bit). i.e. it does not take care of symmetric encryption part that is used to extend OT size past 128 bits.
+// Since signature of sender and receiver is different, I have to write two functions instead of one.
 template <typename OtExtSender, typename OtExtRecver, int BitLength, int NumItems>
 std::array<std::bitset<BitLength>, NumItems> TwoChooseOne_Receiver_Short(std::string sender_ip, const std::bitset<NumItems>& choice_) {
     static_assert(BitLength <= 128); // we are not using AES to hybrid encrypt, so our OT length is limited to at most 1 block (128 bits).
