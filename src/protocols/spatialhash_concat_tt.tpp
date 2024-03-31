@@ -15,8 +15,6 @@
 #include <cryptoTools/Network/IOService.h>
 #include <cryptoTools/Network/Channel.h>
 
-#include <dbg.h>
-
 using std::string;
 
 // GRS22's protocol, using spatialhash + concat + tt, over L-infinity norm.
@@ -51,7 +49,6 @@ public:
         }
         std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
 
-        dbg(pointsByCell);
         // 1.2: now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.
         const uint64_t singleTruthTableLength = cellLength;
@@ -91,7 +88,6 @@ public:
             shares[trial] = std::make_pair(v0, v1);
         }
 
-        dbg(shares);
 
         // step 2. we perform OT for Bob to pick.
         TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
@@ -102,8 +98,6 @@ public:
         IOService ios;
         auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
         chl.recv(fingerprints);
-
-        dbg(fingerprints);
 
         // step 4. We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
@@ -128,8 +122,6 @@ public:
             }
         }
 
-        dbg(restoration);
-
         // step 5. look up the intersection between fingerprint of Alice's and Bob's, which yields result.
         std::set<Point> intersections;
         for (const auto& arr: fingerprints) {
@@ -149,13 +141,11 @@ public:
         // First, we generate random sequence s
         std::random_device dev; std::mt19937_64 rng(dev());
         std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
-        dbg(s);
 
         // Next, we perform OT to select the L half-shares from Alice.
         using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, 2 * cellLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
-        dbg(ret);
         
         // We evaluate each of our point against the L half-shares, yielding 2L-bit long "fingerprint" for each item of ours.
         // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
@@ -176,10 +166,8 @@ public:
 
                 fp[2 * idx] = xbit, fp[2 * idx + 1] = ybit; // we need to pack each result (2 bit) into fingerprint (2L bit).
             }
-            dbg(fp);
             fingerprints[pointIdx] = conversion_tools::bsToBlocks<2 * L>(fp);
         }
-        dbg(fingerprints);
 
         // We transfer such fingerprints back to Alice. Bob's part is now complete.
         IOService ios;

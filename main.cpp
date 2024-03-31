@@ -2,7 +2,7 @@
 #include "protocols/spatialhash_tt.tpp"
 
 int main() {
-    std::cout << "Please also check out code in test/ folder to see usage.\n";
+    std::cout << "Below is a small example for proof-of-concept. For large-scale randomized tests and benchmarks, see tests/protocols.tpp. \n";
     const int bitLength = 4, Lambda = 20, L = 60, cellBitLength = 1;
     std::vector<std::pair<uint64_t, uint64_t>> centers = {
         {1, 1},

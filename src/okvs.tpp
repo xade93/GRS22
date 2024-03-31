@@ -58,7 +58,6 @@ namespace okvs {
         {
             randomSource = std::move(RandomSource);
             randomEngine = std::mt19937_64((*randomSource)());
-            static_assert(HashedKeyLength <= 64);
         }
 
         // securely hash binary string of length I and salt L to arbitrary length O
