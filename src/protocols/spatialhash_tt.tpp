@@ -1,5 +1,9 @@
 #pragma once
 #include "common.tpp"
+// for abstract class of protocol
+#include "protocol.hpp"
+
+// for implementing protocol
 #include "bfss/spatial_hash.tpp"
 #include "bfss/trivial_bfss.tpp"
 #include "oblivious_transfer.tpp"
@@ -15,52 +19,30 @@
 
 using std::string;
 
-// GRS22's protocol, using tt + spatialhash, over L-infinity norm.
-// server is the one holding structure, and also the one receiving final intersection.
-// client receive nothing on default.
-namespace GRS22_L_infinity_protocol {
+// GRS22's protocol, using spatialhash + tt, over L-infinity norm.
+// usage condition: Any Alice Set
+// for role of server and client, see protocols/protocol.hpp
+template<int bitLength, int Lambda, int L, int cellBitLength> 
+class spatialhash_tt: public GRS22_L_infinity_protocol<bitLength, Lambda, L, cellBitLength> {
+public:
     using Point = std::pair<uint64_t, uint64_t>;
-    const std::string port = ":2468"; // start with :
-
-    // aux function that takes last K bits of a 64 bit integer x.
-    uint64_t lastKBits(uint64_t x, int K) {
-        assert(K <= 64);
-        if (K == 64) return x;
-        else {
-            return x % (1ull << K);
-        }
-    }
-
     // Set intersection server, holding structure and yielding intersection result. 
     // use Iknp as OT protocol on default.
-    // @param bitLength     the length in bits of the point axis (e.g. if X, Y <= 256 then bitLength is 8)
-    // @param Lambda        the number of extra columns for OKVS (see PaXoS paper)
-    // @param L             the number of instances OT will be performed. Usually Increasing this decrease error probability exponentially.
-    // @param cellBitLength the length of bits of the cell. Here we restrict the length to be powers of two, so that coding can be a bit easier. In practice radius can be of any value, and not have to be powers of two.
     // @param centers       the vector of points storing center of Alice's balls.
     // @param clientIP      IP of client. Port is not needed and is setted above.
     // @param radius        radius of Alice's spheres.
-    template<int bitLength, int Lambda, int L, int cellBitLength> 
     std::set<Point> SetIntersectionServer(const std::vector<Point>& centers, const string& clientIP, uint32_t radius)
     {
         static_assert(cellBitLength <= 32); // so that we can (conveniently) perform arithmetic in uint64_t. This should be more than enough, and since below have quadratic complexity, this number is already beyond enough.
         const uint64_t cellLength = 1ull << cellBitLength;
-        auto membership = [&radius](const std::vector<Point>& centers, uint64_t x, uint64_t y) { // TODO optimize
-            for (auto [currX, currY]: centers) {
-                if (std::max(
-                    std::abs((int64_t)currX - (int64_t)x), 
-                    std::abs((int64_t)currY - (int64_t)y)) <= radius) return true;
-            }
-            return false;
-        };
         // step 1. Alice generate L copies of bFSS describing her structure.
         
-        // first we partition all points in Alice into cells
+        // 1.1: first we partition all points in Alice into cells
         uint64_t AliceExpandedPointsCount = 0;
         std::map<Point, std::set<Point>> pointsByCell;
         for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
             for (uint64_t y = 0; y < (1ull << bitLength); ++y) {
-                if (membership(centers, x, y)) {
+                if (this->membership(centers, x, y, radius)) { // this-> is necessary for disambiguation
                     pointsByCell[std::make_pair<uint64_t, uint64_t>(x / cellLength, y / cellLength)].emplace(x, y);
                     AliceExpandedPointsCount++;
                 }
@@ -69,7 +51,7 @@ namespace GRS22_L_infinity_protocol {
         std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
 
         dbg(pointsByCell);
-        // now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
+        // 1.2: now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.
         const uint64_t truthTableLength = (1ull << (2 * cellBitLength)); // by calculation we see inner TT size is exactly 4 ^ cellBitLength. This is also validated by template system.
         const uint64_t okvsKeyLength = 2 * (bitLength - cellBitLength); // this is also quite obvious
@@ -101,10 +83,10 @@ namespace GRS22_L_infinity_protocol {
 
         dbg(shares);
 
-        // next, we perform OT for Bob to pick.
+        // step 2. we perform OT for Bob to pick.
         TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
 
-        // Bob should done evaluating by now. Receive fingerprints from him
+        // step 3. Bob should done evaluating by now. Receive fingerprints from him
         const int blockCount = (L + 127) / 128;
         std::vector<std::array<block, blockCount>> fingerprints; // TODO does this work?
         IOService ios;
@@ -113,13 +95,13 @@ namespace GRS22_L_infinity_protocol {
 
         dbg(fingerprints);
 
-        // We also generate fingerprint for every element of ours with randomly selected s.
+        // step 4. We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
         std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
 
         std::unordered_map<std::bitset<L>, std::pair<uint64_t, uint64_t>> restoration;
         for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
-            for (uint64_t y = 0; y < (1ull << bitLength); ++y) if (membership(centers, x, y))  {
+            for (uint64_t y = 0; y < (1ull << bitLength); ++y) if (this->membership(centers, x, y, radius))  { // this-> is necessary for disambiguation
                 std::bitset<L> fingerprint;
                 for (uint64_t i = 0; i < L; ++i) {
                     SuitableSpatialHash hash;
@@ -134,7 +116,7 @@ namespace GRS22_L_infinity_protocol {
 
         dbg(restoration);
 
-        // Final step would be look up the intersection between fingerprint of Alice's and Bob's, which yields result.
+        // step 5. look up the intersection between fingerprint of Alice's and Bob's, which yields result.
         std::set<Point> intersections;
         for (const auto& arr: fingerprints) {
             std::bitset<L> fp = conversion_tools::blocksToBs<L>(arr);
@@ -146,13 +128,8 @@ namespace GRS22_L_infinity_protocol {
 
     // Set intersection client, holding unstructued points and yield nothing. 
     // use Iknp as OT protocol on default.
-    // @param bitLength     the length in bits of the point axis (e.g. if X, Y <= 256 then bitLength is 8)
-    // @param Lambda        the number of extra columns for OKVS (see PaXoS paper)
-    // @param L             the number of instances OT will be performed. Usually Increasing this decrease error probability exponentially.
-    // @param cellBitLength the length of bits of the cell. Here we restrict the length to be powers of two, so that coding can be a bit easier. In practice radius can be of any value, and not have to be powers of two.
     // @param points        the vector of Bob's points.
     // @param serverIP      IP of server. Port is not needed and is setted above.
-    template<int bitLength, int Lambda, int L, int cellBitLength>
     void SetIntersectionClient(const std::vector<Point>& points, const string& serverIP) {
         const uint64_t cellLength = (1ull << cellBitLength);
         // First, we generate random sequence s
@@ -191,4 +168,14 @@ namespace GRS22_L_infinity_protocol {
         auto chl = Session(ios, serverIP + port, SessionMode::Server).addChannel();
         chl.send(std::move(fingerprints));
     }
-}
+protected:
+    const std::string port = ":2468"; // start with :
+    // aux function that takes last K bits of a 64 bit integer x.
+    uint64_t lastKBits(uint64_t x, int K) {
+        assert(K <= 64);
+        if (K == 64) return x;
+        else {
+            return x % (1ull << K);
+        }
+    }
+};

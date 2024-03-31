@@ -1,5 +1,5 @@
 #include <bits/stdc++.h>
-#include "protocol.tpp"
+#include "protocols/spatialhash_tt.tpp"
 
 int main() {
     std::cout << "Please also check out code in test/ folder to see usage.\n";
@@ -19,10 +19,12 @@ int main() {
             {6, 7},
             {6, 8}
         };
-        GRS22_L_infinity_protocol::SetIntersectionClient<bitLength, Lambda, L, cellBitLength>(points, "localhost");
+        spatialhash_tt<bitLength, Lambda, L, cellBitLength> psi;
+        psi.SetIntersectionClient(points, "localhost");
     });
 
-    auto intersection = GRS22_L_infinity_protocol::SetIntersectionServer<bitLength, Lambda, L, cellBitLength>(centers, "localhost", 1);
+    spatialhash_tt<bitLength, Lambda, L, cellBitLength> psi;
+    auto intersection = psi.SetIntersectionServer(centers, "localhost", 1);
 
     Bob.join();
 

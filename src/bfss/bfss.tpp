@@ -8,7 +8,6 @@
 //  1. eval(share1, x) ^ eval(share2, x) == f(x)
 //  2. share1 and share2 alone are almost random independently.
 // But of course they are not enforced in the syntax.
-
 template<typename Key, typename Value, uint64_t ShareLength>
 class bFSS {
 public:
