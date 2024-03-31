@@ -1,4 +1,7 @@
-This is a C++20 implementation of GRS22's [Structure-Aware Private Set Intersection, With Applications to Fuzzy Matching](https://eprint.iacr.org/2022/1011). 
+This is a C++20 implementation of GRS22's [Structure-Aware Private Set Intersection, With Applications to Fuzzy Matching](https://eprint.iacr.org/2022/1011). We implement GRS22's PSI protocol with three bFSS recipes:
+1. `spatialhash @ concat @ tt`
+2. `xorshare @ tt`
+3. `spatialhash @ tt`
 
 ## Assumptions
 We assume 
