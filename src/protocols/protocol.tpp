@@ -38,7 +38,7 @@ public:
     // @param points        the vector of Bob's points.
     // @param serverIP      IP of server. Port is not needed and is setted above.
     virtual void SetIntersectionClient(const std::vector<Point>& points, const string& serverIP) = 0;
-protected:
+    
     // L-infinity membership test. TODO optimize
     bool membership(const std::vector<Point>& centers, uint64_t x, uint64_t y, uint64_t radius) { 
         for (auto [currX, currY]: centers) {

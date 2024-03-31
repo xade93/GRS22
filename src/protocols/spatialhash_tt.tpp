@@ -1,7 +1,7 @@
 #pragma once
 #include "common.tpp"
 // for abstract class of protocol
-#include "protocol.hpp"
+#include "protocol.tpp"
 
 // for implementing protocol
 #include "bfss/spatial_hash.tpp"
