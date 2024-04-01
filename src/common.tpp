@@ -10,20 +10,31 @@
 #include <memory>
 #include <unordered_set>
 
-// Generate pseudorandom bit sequence from PRNG source. 
-// Note: it alters internal state of the PRNG.
-// TODO more efficient way due to apparent bit alignment.
-template<uint64_t L>
-std::bitset<L> GetBitSequenceFromPRNG(std::mt19937_64& src) {
-    std::bitset<L> bits;
+// first we simplify our base data structure
+using bits = std::vector<bool>;
+
+// note we work ourselves around std::vector<bool>, so we can have some helper function that makes life easier
+// this allows cout a vector<bool>
+std::ostream& operator<<(std::ostream& os, const bits& vec) {
+    for (bool bit : vec) {
+        os << bit;
+    }
+    return os; 
+}
+
+
+// Generates random bitsequence, except this time the length is controlled runtime.
+// note it mutates inputted random device.
+bits GetBitSequenceFromPRNG_RunTime(std::mt19937_64& src, const size_t L) {
+    bits bts(L);
     for (uint64_t idx = 0; idx < L; idx += 64) {
         auto val = src();
         std::bitset<64> currBatch(val);
         for (uint64_t currBit = idx; currBit < std::min(idx + 64, L); ++currBit) {
-            bits[currBit] = currBatch[currBit - idx];
+            bts[currBit] = currBatch[currBit - idx];
         }
     }
-    return bits;
+    return bts;
 }
 
 // concats two bitsets; optimize not quite possible without not using std::bitset.
@@ -45,3 +56,4 @@ std::pair<std::bitset<s1>, std::bitset<s2>> splitBitSet(const std::bitset<s1 + s
     for (size_t i = s1; i < s1 + s2; ++i) high[i - s1] = x[i];
     return std::make_pair(low, high);
 }
+

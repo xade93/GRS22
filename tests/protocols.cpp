@@ -2,8 +2,9 @@
 #include "protocols/spatialhash_concat_tt.tpp"
 #include "protocols/spatialhash_tt.tpp"
 
+// tests spatialhash @ tt in 256 * 256 grid, 
 TEST_CASE("soundness of spatialhash tt", "[okvs]") {
-    const int bitLength = 4, Lambda = 60, L = 60, cellBitLength = 1;
+    const int bitLength = 8, Lambda = 60, L = 60, cellBitLength = 2;
     const int radius = 1 << cellBitLength;
     std::vector<std::pair<uint64_t, uint64_t>> centers;
     std::vector<std::pair<uint64_t, uint64_t>> points;
@@ -15,7 +16,7 @@ TEST_CASE("soundness of spatialhash tt", "[okvs]") {
 
         std::array<std::array<bool, 1 << bitLength>, 1 << bitLength> locations;
         int stuck = 0;
-        while(stuck <= 5 && ret.size() < n) {
+        while(stuck <= 10 && ret.size() < n) {
             int u = distr(gen), v = distr(gen);
             
             if (!locations[u][v]) {
@@ -24,10 +25,11 @@ TEST_CASE("soundness of spatialhash tt", "[okvs]") {
                 stuck = 0;
             } else stuck++;
         }
+        if (ret.size() != n) std::cout << "note: try to generate " << n << " distinct points, only managed to generate " << ret.size() << " points.\n";
         return ret;  
     };
-    centers = genRandomPoints(5);
-    points = genRandomPoints(100);
+    centers = genRandomPoints(10); // covers ~12% of area 
+    points = genRandomPoints(100); // covers ~3% of area
     auto Bob = std::thread([&] {
         spatialhash_tt<bitLength, Lambda, L, cellBitLength> psi;
         psi.SetIntersectionClient(points, "localhost");

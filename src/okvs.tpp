@@ -40,17 +40,18 @@ namespace okvs {
     // basically encoding is just randomly generate v until the matrix is full rank, then solve a AX=B under GF_{ValueLength} field.
     // mt19937 is used in 2 places: 1) act as RNG source in lambda string 2) act as 'hasher'
     // also stick to SHA256 for hashing.
-    template<uint64_t KeyLength, uint64_t ValueLength, uint64_t Lambda, uint64_t MaxEncodingAttempt = 10>
+    template<uint64_t KeyLength, uint64_t ValueLength, uint64_t Lambda, uint64_t MaxEncodingAttempt = 20>
     struct RandomBooleanPaXoS {
     protected:
         std::mt19937_64 randomEngine;
         std::unique_ptr<std::random_device> randomSource;
-        static constexpr uint64_t HashedKeyLength = KeyLength + Lambda;
     public:
-        using EncodedPaXoS = std::array<std::bitset<ValueLength>, HashedKeyLength>;
         using Key = std::bitset<KeyLength>;
-        using Nonce = std::bitset<Lambda>;
         using Value = std::bitset<ValueLength>;
+        using EncodedPaXoS = std::vector<Value>;
+        
+        using Nonce = std::bitset<Lambda>;
+        
         template<typename T> using Opt = std::optional<T>;
 
         // why unique ptr? because I need modifiable sole ownership of the random source.
@@ -60,10 +61,10 @@ namespace okvs {
             randomEngine = std::mt19937_64((*randomSource)());
         }
 
-        // securely hash binary string of length I and salt L to arbitrary length O
+        // securely hash binary string of length I and salt L to arbitrary length outputLength
         // security at most 2**64, TODO improve security up to mt19937_64's space
-        template<uint64_t I, uint64_t L, uint64_t O> 
-        std::bitset<O> streamHash(const std::bitset<I>& input, const std::bitset<L>& salt) {
+        template<uint64_t I, uint64_t L> 
+        bits streamHash(const std::bitset<I>& input, const std::bitset<L>& salt, const int outputLength) {
             // hash salted input via SHA256.
             std::bitset<I + L> combinedInput(input.to_string() + salt.to_string()); // note this essentially "Reverse" them, due to bitset print MSB first. not very efficient
 
@@ -75,7 +76,7 @@ namespace okvs {
 
             // finally, generate output vector.
             auto v = std::mt19937_64(prngSeed);
-            auto ret = GetBitSequenceFromPRNG<O>(v);
+            auto ret = GetBitSequenceFromPRNG_RunTime(v, outputLength);
 
             return ret;
         }
@@ -85,29 +86,33 @@ namespace okvs {
         Opt<std::pair<EncodedPaXoS, Nonce>> encode(std::vector<std::pair<Key, Value>> kvs) { // intentionally need to copy kvs
             // there is no need for padding if the hamming weight of v is sufficiently large (which is the case since v is random, hamming weight is half of bitlength).
             size_t n = kvs.size(); // number of key-value pairs we wish to encode.
-            using HashedKey = std::bitset<HashedKeyLength>;
             for (uint64_t trial = 0; trial <= MaxEncodingAttempt; ++trial) {
                 // firstly, we generate the whole encoded matrix.
                 auto nonce = GetBitSequenceFromPRNG<Lambda>(randomEngine);
-                std::vector<HashedKey> currMatrix;
+                std::cout << trial << "th trial, nonce = " << nonce << std::endl; // DEBUG FIXME
+
+                std::vector<bits> currMatrix;
                 for (auto& [key, value]: kvs) { // for each key[i], evaluate v(key[i]). note v in paper is implemented as streamHash here
-                    auto encodedKey = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
+                    auto encodedKey = streamHash<KeyLength, Lambda>(key, nonce, n);
                     currMatrix.emplace_back(encodedKey);
                 }
-                assert(currMatrix.size() == kvs.size());
+                assert(currMatrix.size() == n);
 
                 // next, we check if the generated matrix is linearly independent. 
-                if (isFullRank<HashedKeyLength>(currMatrix)) {
+                // the probability of this for random square matrix is prod (1 - 0.5 ^ i) which always >= 0.288.
+                // so after 20 regeneration of v the probability of it generating a independent matrix > 99.88%, even with lambda = 0
+                // so not really need to add lambda to matrix no? just add it as salt to change v behavior.
+                if (isFullRank(currMatrix)) {
                     EncodedPaXoS encoded;
                     // we enter the encoding phase.
                     // for each of the columns, perform a Ax = b.
                     for (uint64_t i = 0; i < ValueLength; ++i) {
-                        std::vector<bool> q(n);
+                        bits q(n);
                         for (uint64_t j = 0; j < n; ++j) q[j] = kvs[j].second[i]; // taking vertical slice of value portion of kvs matrix
-                        auto ret_wrapper = solveLinear<HashedKeyLength>(currMatrix, q);
+                        auto ret_wrapper = solveLinear(currMatrix, q);
                         assert(ret_wrapper.has_value());
                         auto ret = ret_wrapper.value();
-                        for (uint64_t j = 0; j < HashedKeyLength; ++j) encoded[j][i] = ret[j]; // copy to encode
+                        for (uint64_t j = 0; j < n; ++j) encoded[j][i] = ret[j]; // copy to encode
                     }
                     return std::make_pair(encoded, nonce) ;
                 }
@@ -119,41 +124,44 @@ namespace okvs {
         // decoding always succeed, and is equivalent to MUXing paxos by selected bits.
         Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key) {
             Value ret; 
-            auto vx = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
+            const size_t n = encoded.size();
+            auto vx = streamHash<KeyLength, Lambda>(key, nonce, n);
 
-            for (uint64_t i = 0; i < HashedKeyLength; ++i) if (vx[i]) ret = ret ^ encoded[i];
+            for (uint64_t i = 0; i < n; ++i) if (vx[i]) ret = ret ^ encoded[i];
             return ret;
         }
         
         // helper function that serialises PaXoS given into single bitset.
         // copies bit by bit, not very efficient. use with caution.
         // Layout: [ row 1 ][ row 2 ] .... [ row H ][ Nonce ]
-        //         0        V         .... V*(H-1)      V*H
-        Opt<std::bitset<ValueLength * HashedKeyLength + Lambda>> serialize(const Opt<std::pair<EncodedPaXoS, Nonce>>& encoded) {
+        // Size: ValueLength * n + Lambda
+        Opt<bits> serialize(const Opt<std::pair<EncodedPaXoS, Nonce>>& encoded) {
             if (encoded.has_value()) {
                 auto [paxos, nc] = encoded.value();
-                std::bitset<ValueLength * HashedKeyLength + Lambda> ret;
+                const size_t n = paxos.size();
+                bits ret(n);
                 // copies paxos
-                for (uint64_t i = 0; i < HashedKeyLength; ++i) {
+                for (uint64_t i = 0; i < n; ++i) {
                     for (uint64_t currBit = 0; currBit < ValueLength; ++currBit) ret[i * ValueLength + currBit] = paxos[i][currBit];
                 }
                 // copies tail
-                for (uint64_t i = 0; i < Lambda; ++i) ret[ValueLength * HashedKeyLength + i] = nc[i];
+                for (uint64_t i = 0; i < Lambda; ++i) ret[ValueLength * n + i] = nc[i];
                 return ret;
             } else return std::nullopt;
         }
 
         // extracts EncodedPaXoS and Nonce from serialised bitstream. see serialize() for note.
-        std::pair<EncodedPaXoS, Nonce> deserialize(const std::bitset<ValueLength * HashedKeyLength + Lambda>& bits) {
+        std::pair<EncodedPaXoS, Nonce> deserialize(const bits& bits) {
+            uint64_t n = (bits.size() - Lambda) / ValueLength; // TODO overflow / malformed data?
             EncodedPaXoS paxos;
             Nonce nc;
 
             // restores paxos
-            for (uint64_t i = 0; i < HashedKeyLength; ++i) {
+            for (uint64_t i = 0; i < n; ++i) {
                 for (uint64_t currBit = 0; currBit < ValueLength; ++currBit) paxos[i][currBit] = bits[i * ValueLength + currBit];
             }
             // restores tail
-            for (uint64_t i = 0; i < Lambda; ++i) nc[i] = bits[ValueLength * HashedKeyLength + i];
+            for (uint64_t i = 0; i < Lambda; ++i) nc[i] = bits[ValueLength * n + i];
             return std::make_pair(paxos, nc);
         }
     };

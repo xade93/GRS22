@@ -11,7 +11,7 @@ TEST_CASE("okvs hashing looks correctly", "[okvs]") {
 TEST_CASE("okvs stream hash looks correctly", "[okvs]") { // TODO uncomment; comment due to cluttering console
     auto randomSource = std::make_unique<std::random_device>();
     okvs::RandomBooleanPaXoS<6, 8, 2, 10> paxos(std::move(randomSource));
-    auto ret = paxos.streamHash<4, 2, 8>(std::bitset<4>("0101"), std::bitset<2>("01"));
+    auto ret = paxos.streamHash<4, 2>(std::bitset<4>("0101"), std::bitset<2>("01"), 8);
     std::cout << "generated stream hash value: " << ret << std::endl;
 }
 

@@ -27,7 +27,7 @@ public:
         kvs[serialize(x, y)] = value;
     }
     
-    std::optional<std::bitset<OutputSize>> encode() {
+    std::optional<bits> encode() {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
 
@@ -38,7 +38,7 @@ public:
     }
 
     // as decoder, we wish to decode;
-    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y) {
+    Value decode(const bits& str, uint32_t x, uint32_t y) {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
         auto [paxos, nonce] = okvs.deserialize(str);
