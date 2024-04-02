@@ -3,10 +3,12 @@ This is a C++20 implementation of GRS22's [Structure-Aware Private Set Intersect
 2. `xorshare @ tt`
 3. `spatialhash @ tt`
 
+This implementation is optimized heavily towards minimizing communication costs, while being suboptimal in running time.
+
 ## Assumptions
 We assume 
 1. `sizeof(long) == 8` (which should hold on most modern machines);
-2. Host CPU supports AESNI operations. Over Linux this can be checked via `grep -o aes /proc/cpuinfo`.  Again this should hold on most reasonably modern machines.
+2. Host CPU supports AESNI operations. Over Linux this can be checked via `grep -o aes /proc/cpuinfo`.  Again should hold on most reasonably modern machines.
 
 ## Project Structure
 - `/src` contains sources. Since we use `std::bitset` as main mode of storage, most of the code is in .tpp and no separation of interface and implementation is possible.
@@ -15,7 +17,7 @@ We assume
     - `oblivious_transfer_short.tpp` contains wrapper for libOTe's oblivious transfer, limited to <=128bit only. This file is currently not used.
     - `oblivious_transfer.tpp` contains wrapper fro libOTe's oblivious transfer, except that it supports arbitrary length OT via hybrid encryption.
     - `okvs.tpp` contains oblivious key-value storage via random boolean matrix method, described in [PSI from PaXoS: Fast, Malicious Private Set Intersection](https://eprint.iacr.org/2020/193)
-    - `protocol.tpp` contains implementation for the PSI protocol, using above as components.
+    - `protocol/` contains implementation for the PSI protocol, using 3 recipes.
 - `/test` folder contains unit tests written with Catch2, which also serves the purpose of usage examples. 
 
 ## Installation
@@ -27,7 +29,7 @@ docker exec -it garimella bash
 pacman -Syyuu
 pacman -S python vim make wget curl git gcc autoconf automake pkgconf cmake openssh
 ```
-Then, install libOTe (note below instructions are copied from libOTe page, and may subject to change over time):
+Then, install libOTe (below instructions are copied from libOTe page, and may subject to change over time):
 ```bash
 pacman -S libtool
 git clone https://github.com/osu-crypto/libOTe.git
