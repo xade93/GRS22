@@ -64,23 +64,20 @@ namespace okvs {
         // securely hash binary string of length I and salt L to arbitrary length O
         // security at most 2**64, TODO improve security up to mt19937_64's space
         template<uint64_t I, uint64_t L, uint64_t O> 
-        std::bitset<O> streamHash(const std::bitset<I>& input, const std::bitset<L>& salt, bool dbgg = false) {
+        std::bitset<O> streamHash(const std::bitset<I>& input, const std::bitset<L>& salt) {
             // hash salted input via SHA256.
             std::bitset<I + L> combinedInput(input.to_string() + salt.to_string()); // note this essentially "Reverse" them, due to bitset print MSB first. not very efficient
 
             // std::bitset<256> hashed = SHA256Hash<I + L>(combinedInput); TODO FIXME
 
-            // if (dbgg) dbg(hashed);
             // compress the 256-bit hash into 64 bit, which is used to seed mt19937_64
             uint64_t prngSeed = 0;
             for (uint64_t i = 0; i < I + L; ++i) if (combinedInput[i]) prngSeed ^= (1ll << (i % 64));
-            if (dbgg) dbg(prngSeed);
 
             // finally, generate output vector.
             auto v = std::mt19937_64(prngSeed);
             auto ret = GetBitSequenceFromPRNG<O>(v);
 
-            if (dbgg) dbg(ret);
             return ret;
         }
 
@@ -122,10 +119,9 @@ namespace okvs {
 
         // decode a PaXoS from some key.
         // decoding always succeed, and is equivalent to MUXing paxos by selected bits.
-        Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key, bool dbgg = false) {
+        Value decode(const EncodedPaXoS& encoded, const Nonce& nonce, const Key& key) {
             Value ret; 
-            auto vx = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce, dbgg);
-            if (dbgg) dbg(vx);
+            auto vx = streamHash<KeyLength, Lambda, HashedKeyLength>(key, nonce);
             for (uint64_t i = 0; i < HashedKeyLength; ++i) if (vx[i]) ret = ret ^ encoded[i];
             return ret;
         }

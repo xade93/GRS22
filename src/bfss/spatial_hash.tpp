@@ -39,12 +39,12 @@ public:
     }
 
     // as decoder, we wish to decode;
-    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y, bool dbgg = false) {
+    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y) {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
         auto [paxos, nonce] = okvs.deserialize(str);
-        if (dbgg) dbg(paxos), dbg(nonce), dbg(serialize(x, y));
-        return okvs.decode(paxos, nonce, serialize(x, y), dbgg);
+
+        return okvs.decode(paxos, nonce, serialize(x, y));
     }
 
     constexpr static size_t getOutputSize() {

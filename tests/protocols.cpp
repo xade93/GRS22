@@ -2,9 +2,9 @@
 #include "protocols/spatialhash_concat_tt.tpp"
 #include "protocols/spatialhash_tt.tpp"
 
-TEST_CASE("soundness of spatialhash tt", "[okvs]") {
-    const int bitLength = 8, Lambda = 200, L = 60, cellBitLength = 2;
-    const int aliceCount = 20, bobCount = 1000;
+TEST_CASE("soundness of spatialhash tt", "[protocol]") {
+    const int bitLength = 10, Lambda = 200, L = 60, cellBitLength = 2;
+    const int aliceCount = 20, bobCount = 10000;
     const int radius = 1 << cellBitLength;
 
     auto genRandomPoints = [&bitLength](int n) {
@@ -50,10 +50,10 @@ TEST_CASE("soundness of spatialhash tt", "[okvs]") {
     REQUIRE(groundtruth == intersection);
 }
 
-TEST_CASE("soundness of spatialhash concat tt", "[okvs]") {
+TEST_CASE("soundness of spatialhash concat tt", "[protocol]") {
     // 1024 * 1024 region, radius = 4
-    const int bitLength = 8, Lambda = 200, L = 60, cellBitLength = 2;
-    const int aliceCount = 20, bobCount = 1000;
+    const int bitLength = 11, Lambda = 200, L = 60, cellBitLength = 4;
+    const int aliceCount = 5, bobCount = 10000;
     const int radius = 1 << cellBitLength;
     
     // lets randomly fill centers and points, subject to the >4delta rule.

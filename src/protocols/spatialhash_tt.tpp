@@ -55,7 +55,7 @@ public:
         const uint64_t okvsKeyLength = 2 * (bitLength - cellBitLength); // this is also quite obvious
         using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, truthTableLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
-        dbg(truthTableLength), dbg(okvsKeyLength), dbg(shareLength);
+
         std::array<std::pair<std::bitset<shareLength>, std::bitset<shareLength>>, L> shares;
 
         for (uint64_t trial = 0; trial < L; ++trial) {
@@ -80,8 +80,7 @@ public:
             shares[trial] = std::make_pair(v0, v1);
         }
 
-        // step 2. we perform OT for Bob to pick.
-        dbg(shares[FOCUS_L]);
+        // step 2. we perform OT for Bob to pick.;
         TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
         
         // step 3. Bob should done evaluating by now. Receive fingerprints from him
@@ -90,8 +89,7 @@ public:
         IOService ios;
         auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
         chl.recv(fingerprints);
-        // std::cout << "Alice received fingeprint set items: " << fingerprints.size() << std::endl;
-        dbg(conversion_tools::blocksToBs<L>(fingerprints[FOCUS_L]));
+        std::cout << "Estimated communication for Bob's fingerprints (bytes): " << channelBuffSize(fingerprints) << std::endl;
         // step 4. We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
         std::bitset<L> s; // TODO FIXME = GetBitSequenceFromPRNG<L>(rng);
@@ -102,22 +100,12 @@ public:
                 std::bitset<L> fingerprint;
                 for (uint64_t i = 0; i < L; ++i) {
                     SuitableSpatialHash hash;
-                    auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / cellLength, y / cellLength, x == 1 && y == 1 && i == FOCUS_L); 
-                    if (x == 1 && y == 1 && i == FOCUS_L) {
-                        SuitableSpatialHash hash2;
-                        auto innerAlt = hash2.decode((s[i] ? shares[i].first : shares[i].second), x / cellLength, y / cellLength, i == FOCUS_L);
-                        // std::cout << "Inside location i = " << x << ", j = " << y << ", cell tt in foucs L is " << std::endl;
-                        // std::cout << "raw input is " << shares[i].first << " and " << shares[i].second << std::endl;
-                        dbg(inner, innerAlt);
-                    }
+                    auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / cellLength, y / cellLength); 
                     TruthTable<cellBitLength * 2, 1> tt(inner);
-                    
                     std::bitset<1> ret = tt.evaluate((x % cellLength) * cellLength + y % cellLength);
                     fingerprint[i] = ret[0];
                 }
-                if (x == 1 && y == 1) {
-                    std::cout << "Alice's fingerprint's FOCUS_L th bit for (1, 1) is " << fingerprint[FOCUS_L] << std::endl;
-                }
+
                 restoration[fingerprint] = std::make_pair(x, y); // TODO note here collision
             }
         }
@@ -147,8 +135,6 @@ public:
         using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, cellLength * cellLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
-        dbg(ret[FOCUS_L]);
-        dbg(shareLength);
 
         // We evaluate each of our point against the L half-shares, yielding L-bit long "fingerprint" for each item of ours.
         // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
@@ -160,19 +146,13 @@ public:
             std::bitset<L> fp;
             for (uint64_t idx = 0; idx < L; ++idx) {
                 SuitableSpatialHash hash;
-                auto inner = hash.decode(ret[idx], u / cellLength, v / cellLength, idx == FOCUS_L);
-                if (idx == FOCUS_L) {
-                    std::cout << "At bob side (1, 1) L = FOCUS_L, tt is " << inner << std::endl;
-                    std::cout << "raw input is " << ret[idx] << std::endl;
-                }
+                auto inner = hash.decode(ret[idx], u / cellLength, v / cellLength);
                 TruthTable<cellBitLength * 2, 1> tt(inner);
-                // dbg(u, v);
+
                 std::bitset<1> ret = tt.evaluate((u % cellLength) * cellLength + v % cellLength);
                 fp[idx] = ret[0];
             }
-            if (pointIdx == 0) {
-                std::cout << "Bob's fingerprint at FOCUS_L is " << fp[FOCUS_L] << std::endl;
-            }
+
             fingerprints[pointIdx] = conversion_tools::bsToBlocks<L>(fp);
         }
 
@@ -180,8 +160,6 @@ public:
         IOService ios;
         auto chl = Session(ios, serverIP + port, SessionMode::Server).addChannel();
         std::cout << "Bob sending fingeprint set items: " << fingerprints.size() << std::endl;
-        dbg(conversion_tools::blocksToBs<L>(fingerprints[0]));
-        dbg(fingerprints[0]);
         chl.send(std::move(fingerprints));
         
     }

@@ -115,7 +115,6 @@ void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std
 
     std::cout << "Estimated communication for Keys (bytes): " << channelBuffSize(sMsgs) << std::endl;
     std::cout << "Estimated communication for Contents (bytes): " << channelBuffSize(EncryptedContents) << std::endl;
-    std::cout << "Estimated total communication (bytes): " << channelBuffSize(EncryptedContents) + channelBuffSize(sMsgs) << std::endl;
 
 }
 

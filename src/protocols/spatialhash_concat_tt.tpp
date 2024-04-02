@@ -98,6 +98,7 @@ public:
         IOService ios;
         auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
         chl.recv(fingerprints);
+        std::cout << "Estimated communication for Bob's fingerprints (bytes): " << channelBuffSize(fingerprints) << std::endl;
 
         // step 4. We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
