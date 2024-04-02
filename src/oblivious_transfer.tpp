@@ -112,6 +112,11 @@ void TwoChooseOne_Sender(std::string receiver_ip, const std::array<std::pair<std
     IOService ios;
     auto chl2 = Session(ios, receiver_ip + port2, SessionMode::Server).addChannel();
     chl2.send(std::move(EncryptedContents));
+
+    std::cout << "Estimated communication for Keys (bytes): " << channelBuffSize(sMsgs) << std::endl;
+    std::cout << "Estimated communication for Contents (bytes): " << channelBuffSize(EncryptedContents) << std::endl;
+    std::cout << "Estimated total communication (bytes): " << channelBuffSize(EncryptedContents) + channelBuffSize(sMsgs) << std::endl;
+
 }
 
 // wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)

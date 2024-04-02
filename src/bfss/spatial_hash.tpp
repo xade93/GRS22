@@ -2,6 +2,7 @@
 #include "bfss.tpp"
 #include "../okvs.tpp"
 #include <unordered_map>
+#include "dbg.h"
 // a spatial hash is something that takes 2D (non-negative) integer coordinates, and obliviously return bitstrings (usually bFSS half-shares).
 // this class does not take care of smaller construction, you have to supply serialised sub-bFSS to it. 
 template<uint64_t KeyBitLength, uint64_t ValueLength, uint64_t Lambda>
@@ -38,11 +39,12 @@ public:
     }
 
     // as decoder, we wish to decode;
-    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y) {
+    Value decode(const std::bitset<OutputSize>& str, uint32_t x, uint32_t y, bool dbgg = false) {
         auto randomSource = std::make_unique<std::random_device>();
         SuitableOkvs okvs(std::move(randomSource));
         auto [paxos, nonce] = okvs.deserialize(str);
-        return okvs.decode(paxos, nonce, serialize(x, y));
+        if (dbgg) dbg(paxos), dbg(nonce), dbg(serialize(x, y));
+        return okvs.decode(paxos, nonce, serialize(x, y), dbgg);
     }
 
     constexpr static size_t getOutputSize() {

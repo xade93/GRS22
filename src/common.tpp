@@ -10,6 +10,9 @@
 #include <memory>
 #include <unordered_set>
 
+#include <dbg.h>
+#define DBG_MACRO_DISABLE
+
 // Generate pseudorandom bit sequence from PRNG source. 
 // Note: it alters internal state of the PRNG.
 // TODO more efficient way due to apparent bit alignment.

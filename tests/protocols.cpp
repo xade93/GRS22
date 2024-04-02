@@ -3,10 +3,10 @@
 #include "protocols/spatialhash_tt.tpp"
 
 TEST_CASE("soundness of spatialhash tt", "[okvs]") {
-    const int bitLength = 4, Lambda = 60, L = 60, cellBitLength = 1;
+    const int bitLength = 8, Lambda = 200, L = 60, cellBitLength = 2;
+    const int aliceCount = 20, bobCount = 1000;
     const int radius = 1 << cellBitLength;
-    std::vector<std::pair<uint64_t, uint64_t>> centers;
-    std::vector<std::pair<uint64_t, uint64_t>> points;
+
     auto genRandomPoints = [&bitLength](int n) {
         std::vector<std::pair<uint64_t, uint64_t>> ret;
         std::random_device rd;
@@ -26,8 +26,10 @@ TEST_CASE("soundness of spatialhash tt", "[okvs]") {
         }
         return ret;  
     };
-    centers = genRandomPoints(5);
-    points = genRandomPoints(100);
+
+    std::vector<std::pair<uint64_t, uint64_t>> centers = genRandomPoints(aliceCount);
+    std::vector<std::pair<uint64_t, uint64_t>> points = genRandomPoints(bobCount);
+
     auto Bob = std::thread([&] {
         spatialhash_tt<bitLength, Lambda, L, cellBitLength> psi;
         psi.SetIntersectionClient(points, "localhost");
@@ -38,22 +40,22 @@ TEST_CASE("soundness of spatialhash tt", "[okvs]") {
 
     Bob.join();
 
-    std::cout << "Protocol execution finished. Total number of intersections: " << intersection.size() << "\n";
+    std::cout << "Protocol execution finished. Total number of intersections: " << intersection.size() << std::endl;
     
     std::set<std::pair<uint64_t, uint64_t>> groundtruth;
     for (auto [u, v]: points) if (psi.membership(centers, u, v, radius)) groundtruth.emplace(u, v);
 
-    assert(groundtruth == intersection);
+    std::cout << "Groundtruth: " << groundtruth.size() << std::endl;
+    dbg(groundtruth), dbg(intersection);
+    REQUIRE(groundtruth == intersection);
 }
 
 TEST_CASE("soundness of spatialhash concat tt", "[okvs]") {
     // 1024 * 1024 region, radius = 4
-    const int bitLength = 8, Lambda = 120, L = 60, cellBitLength = 1;
+    const int bitLength = 8, Lambda = 200, L = 60, cellBitLength = 2;
+    const int aliceCount = 20, bobCount = 1000;
     const int radius = 1 << cellBitLength;
-    std::vector<std::pair<uint64_t, uint64_t>> centers;
-    std::vector<std::pair<uint64_t, uint64_t>> points;
     
-
     // lets randomly fill centers and points, subject to the >4delta rule.
     // if can't fill n squares inside, it attemps to fill maximum possible.
     auto genRandomFarPoints = [&bitLength, &radius](int n) {
@@ -107,8 +109,11 @@ TEST_CASE("soundness of spatialhash concat tt", "[okvs]") {
         return ret;  
     };
 
-    centers = genRandomFarPoints(10);
-    points = genRandomPoints(500);
+    std::vector<std::pair<uint64_t, uint64_t>> centers;
+    std::vector<std::pair<uint64_t, uint64_t>> points;
+
+    centers = genRandomFarPoints(aliceCount);
+    points = genRandomPoints(bobCount);
     dbg(centers), dbg(points);
 
     auto Bob = std::thread([&] {
@@ -128,5 +133,5 @@ TEST_CASE("soundness of spatialhash concat tt", "[okvs]") {
 
     dbg(groundtruth), dbg(intersection);
 
-    assert(groundtruth == intersection);
+    REQUIRE(groundtruth == intersection);
 }

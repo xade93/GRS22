@@ -20,6 +20,7 @@ using std::string;
 // GRS22's protocol, using spatialhash + tt, over L-infinity norm.
 // usage condition: Any Alice Set
 // for role of server and client, see protocols/protocol.hpp
+const int FOCUS_L = 5;
 template<int bitLength, int Lambda, int L, int cellBitLength> 
 class spatialhash_tt: public GRS22_L_infinity_protocol<bitLength, Lambda, L, cellBitLength> {
 public:
@@ -46,14 +47,15 @@ public:
                 }
             }
         }
-        std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
+        // std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
 
         // 1.2: now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.
-        const uint64_t truthTableLength = (1ull << (2 * cellBitLength)); // by calculation we see inner TT size is exactly 4 ^ cellBitLength. This is also validated by template system.
+        const uint64_t truthTableLength = cellLength * cellLength; // by calculation we see inner TT size is exactly 4 ^ cellBitLength. This is also validated by template system.
         const uint64_t okvsKeyLength = 2 * (bitLength - cellBitLength); // this is also quite obvious
-        using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, cellLength * cellLength, Lambda>;
+        using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, truthTableLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
+        dbg(truthTableLength), dbg(okvsKeyLength), dbg(shareLength);
         std::array<std::pair<std::bitset<shareLength>, std::bitset<shareLength>>, L> shares;
 
         for (uint64_t trial = 0; trial < L; ++trial) {
@@ -79,18 +81,20 @@ public:
         }
 
         // step 2. we perform OT for Bob to pick.
+        dbg(shares[FOCUS_L]);
         TwoChooseOne_Sender<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(clientIP, shares);
-
+        
         // step 3. Bob should done evaluating by now. Receive fingerprints from him
         const int blockCount = (L + 127) / 128;
         std::vector<std::array<block, blockCount>> fingerprints; // TODO does this work?
         IOService ios;
         auto chl = Session(ios, clientIP + port, SessionMode::Client).addChannel();
         chl.recv(fingerprints);
-
+        // std::cout << "Alice received fingeprint set items: " << fingerprints.size() << std::endl;
+        dbg(conversion_tools::blocksToBs<L>(fingerprints[FOCUS_L]));
         // step 4. We also generate fingerprint for every element of ours with randomly selected s.
         std::random_device dev; std::mt19937_64 rng(dev());
-        std::bitset<L> s = GetBitSequenceFromPRNG<L>(rng);
+        std::bitset<L> s; // TODO FIXME = GetBitSequenceFromPRNG<L>(rng);
 
         std::unordered_map<std::bitset<L>, std::pair<uint64_t, uint64_t>> restoration;
         for (uint64_t x = 0; x < (1ull << bitLength); ++x) {
@@ -98,14 +102,26 @@ public:
                 std::bitset<L> fingerprint;
                 for (uint64_t i = 0; i < L; ++i) {
                     SuitableSpatialHash hash;
-                    auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / cellLength, y / cellLength);
+                    auto inner = hash.decode((s[i] ? shares[i].second : shares[i].first), x / cellLength, y / cellLength, x == 1 && y == 1 && i == FOCUS_L); 
+                    if (x == 1 && y == 1 && i == FOCUS_L) {
+                        SuitableSpatialHash hash2;
+                        auto innerAlt = hash2.decode((s[i] ? shares[i].first : shares[i].second), x / cellLength, y / cellLength, i == FOCUS_L);
+                        // std::cout << "Inside location i = " << x << ", j = " << y << ", cell tt in foucs L is " << std::endl;
+                        // std::cout << "raw input is " << shares[i].first << " and " << shares[i].second << std::endl;
+                        dbg(inner, innerAlt);
+                    }
                     TruthTable<cellBitLength * 2, 1> tt(inner);
+                    
                     std::bitset<1> ret = tt.evaluate((x % cellLength) * cellLength + y % cellLength);
                     fingerprint[i] = ret[0];
+                }
+                if (x == 1 && y == 1) {
+                    std::cout << "Alice's fingerprint's FOCUS_L th bit for (1, 1) is " << fingerprint[FOCUS_L] << std::endl;
                 }
                 restoration[fingerprint] = std::make_pair(x, y); // TODO note here collision
             }
         }
+        
 
         // step 5. look up the intersection between fingerprint of Alice's and Bob's, which yields result.
         std::set<Point> intersections;
@@ -131,7 +147,9 @@ public:
         using SuitableSpatialHash = SpatialHash<bitLength - cellBitLength, cellLength * cellLength, Lambda>;
         constexpr uint64_t shareLength = SuitableSpatialHash::getOutputSize();
         auto ret = TwoChooseOne_Receiver<IknpOtExtSender, IknpOtExtReceiver, shareLength, L>(serverIP, s);
-        
+        dbg(ret[FOCUS_L]);
+        dbg(shareLength);
+
         // We evaluate each of our point against the L half-shares, yielding L-bit long "fingerprint" for each item of ours.
         // since cryptoTools only supports network transfer of blocks, we need to split our bitset into blocks again. 
         // In practice since error probability is (1 / 2) ^ L, L would hardly ever be larger than 128.
@@ -142,10 +160,18 @@ public:
             std::bitset<L> fp;
             for (uint64_t idx = 0; idx < L; ++idx) {
                 SuitableSpatialHash hash;
-                auto inner = hash.decode(ret[idx], u / cellLength, v / cellLength);
+                auto inner = hash.decode(ret[idx], u / cellLength, v / cellLength, idx == FOCUS_L);
+                if (idx == FOCUS_L) {
+                    std::cout << "At bob side (1, 1) L = FOCUS_L, tt is " << inner << std::endl;
+                    std::cout << "raw input is " << ret[idx] << std::endl;
+                }
                 TruthTable<cellBitLength * 2, 1> tt(inner);
+                // dbg(u, v);
                 std::bitset<1> ret = tt.evaluate((u % cellLength) * cellLength + v % cellLength);
                 fp[idx] = ret[0];
+            }
+            if (pointIdx == 0) {
+                std::cout << "Bob's fingerprint at FOCUS_L is " << fp[FOCUS_L] << std::endl;
             }
             fingerprints[pointIdx] = conversion_tools::bsToBlocks<L>(fp);
         }
@@ -153,7 +179,11 @@ public:
         // We transfer such fingerprints back to Alice. Bob's part is now complete.
         IOService ios;
         auto chl = Session(ios, serverIP + port, SessionMode::Server).addChannel();
+        std::cout << "Bob sending fingeprint set items: " << fingerprints.size() << std::endl;
+        dbg(conversion_tools::blocksToBs<L>(fingerprints[0]));
+        dbg(fingerprints[0]);
         chl.send(std::move(fingerprints));
+        
     }
 protected:
     const std::string port = ":2468"; // start with :

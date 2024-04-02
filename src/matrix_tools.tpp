@@ -3,37 +3,31 @@
 
 template <size_t N>
 bool isFullRank(const std::vector<std::bitset<N>>& matrix) {
-    size_t M = matrix.size();  // Number of rows
-    if (M == 0) return false;  // Empty matrix doesn't have full rank
+    assert(matrix.size() <= N);
+    std::vector<std::bitset<N>> basis(N);
+    std::vector<bool> possible(N);
 
-    size_t n = N;  // Number of columns, determined by bitset size
-    std::vector<std::bitset<N>> mat = matrix;  // Copy of the matrix for manipulation
-
-    size_t rank = 0;
-    for (size_t col = 0; col < n; ++col) {
-        // Find a row with a non-zero element in the current column
-        size_t swapRow = rank;
-        while (swapRow < M && !mat[swapRow][col]) ++swapRow;
-    
-        if (swapRow == M) continue;  // No non-zero element found in this column
-
-        // Swap the row with a non-zero element to the current row
-        std::swap(mat[rank], mat[swapRow]);
-
-        // Eliminate the current column from the subsequent rows
-        for (size_t row = 0; row < M; ++row) 
-            if (row != rank && mat[row][col]) mat[row] ^= mat[rank];  // XOR for binary operation
-        
-        ++rank;  // Increment rank for each pivot found
+    int rank = 0;
+    for (auto row: matrix) {
+        assert(N == row.size()); // assert this is well-formed square matrix
+        for (int idx = N - 1; idx >= 0; --idx) if (row[idx]) {
+            if (possible[idx]) row = row ^ basis[idx];
+            else {
+                basis[idx] = row;
+                possible[idx] = true;
+                rank++;
+                break;
+            }
+        }
     }
-
-    return rank == std::min(M, n);  // Full rank if rank equals the smaller dimension
+    return (rank == matrix.size());
 }
 
 // note this mutates A and b so cant pass reference.
 // TODO courtesy from katcl
 template<uint64_t M>
 std::optional<std::bitset<M>> solveLinear(std::vector<std::bitset<M>> A, std::vector<bool> b) {
+    assert(b.size() == A.size());
     uint64_t n = A.size(), rank = 0, br;
     std::vector<uint64_t> col(M);
     std::iota(col.begin(), col.end(), 0);

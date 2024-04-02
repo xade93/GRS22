@@ -9,10 +9,22 @@ TEST_CASE("okvs hashing looks correctly", "[okvs]") {
 }
 
 TEST_CASE("okvs stream hash looks correctly", "[okvs]") { // TODO uncomment; comment due to cluttering console
+    const size_t strLen = 100, saltLen = 80;
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    auto x = GetBitSequenceFromPRNG<strLen>(gen);
+    auto s = GetBitSequenceFromPRNG<saltLen>(gen);
+    std::cout << "WTF" << std::endl;
+    dbg(x, s);
     auto randomSource = std::make_unique<std::random_device>();
-    okvs::RandomBooleanPaXoS<6, 8, 2, 10> paxos(std::move(randomSource));
-    auto ret = paxos.streamHash<4, 2, 8>(std::bitset<4>("0101"), std::bitset<2>("01"));
-    std::cout << "generated stream hash value: " << ret << std::endl;
+    okvs::RandomBooleanPaXoS<0, 0, 0, 0> paxos(std::move(randomSource));
+    auto ret = paxos.streamHash<strLen, saltLen, 15>(x, s);
+    
+    auto randomSource2 = std::make_unique<std::random_device>();
+    okvs::RandomBooleanPaXoS<0, 0, 0, 0> paxos2(std::move(randomSource2));
+    auto ret2 = paxos2.streamHash<strLen, saltLen, 15>(x, s);
+    
+    REQUIRE(ret == ret2);
 }
 
 TEST_CASE("reversibility of okvs encoding (large case)", "[okvs]") {

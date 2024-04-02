@@ -63,6 +63,9 @@ void TwoChooseOne_Sender_Short(std::string receiver_ip, const std::array<std::pa
 
     cp::sync_wait(sender.sendChosen(sMsgs, prng, chl));
     cp::sync_wait(chl.flush());
+
+    std::cout << "Estimated total communication (bytes): " << channelBuffSize(sMsgs) << std::endl;
+
 }
 
 // wrapper of libOTe (mostly modified from TwoChooseOne example) that also converts format to what we are using (bitsets)
