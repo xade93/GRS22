@@ -1,0 +1,13 @@
+Filters: "soundness of spatialhash tt"
+Randomness seeded to: 3456907994
+Alice's structure contains in total 1593 points.
+Estimated communication for Keys (bytes): 1920
+Estimated communication for Contents (bytes): 1614720
+Bob sending fingeprint set items: 1000
+Estimated communication for Bob's fingerprints (bytes): 16000
+Protocol execution finished. Total number of intersections: 18
+Groundtruth: 18
+[../tests/protocols.cpp:49 (CATCH2_INTERNAL_TEST_50)] groundtruth = {{8, 140}, {27, 213}, {28, 231}, {63, 167}, {64, 172}, {67, 238}, {71, 242}, {81, 112}, {94, 164}, {108, 1}, ... size:18} (std::set<std::pair<long unsigned int, long unsigned int> >)
+[../tests/protocols.cpp:49 (CATCH2_INTERNAL_TEST_50)] intersection = {{8, 140}, {27, 213}, {28, 231}, {63, 167}, {64, 172}, {67, 238}, {71, 242}, {81, 112}, {94, 164}, {108, 1}, ... size:18} (std::set<std::pair<long unsigned int, long unsigned int> >)
+===============================================================================
+All tests passed (1 assertion in 1 test case)

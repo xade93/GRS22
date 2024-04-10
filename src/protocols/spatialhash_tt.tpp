@@ -47,7 +47,7 @@ public:
                 }
             }
         }
-        // std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
+        std::cout << "Alice's structure contains in total " << AliceExpandedPointsCount << " points." << std::endl;
 
         // 1.2: now encode each cell into one OKVS, and insert into spatial hash; we repeat this process L times (and hence L time of OT later)
         // since OT only transfers std::bitset, we need to write serialise to bitset for our structure.

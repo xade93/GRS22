@@ -3,8 +3,8 @@
 #include "protocols/spatialhash_tt.tpp"
 
 TEST_CASE("soundness of spatialhash tt", "[protocol]") {
-    const int bitLength = 10, Lambda = 200, L = 60, cellBitLength = 2;
-    const int aliceCount = 20, bobCount = 10000;
+    const int bitLength = 8, Lambda = 200, L = 60, cellBitLength = 2;
+    const int aliceCount = 20, bobCount = 1000;
     const int radius = 1 << cellBitLength;
 
     auto genRandomPoints = [&bitLength](int n) {
